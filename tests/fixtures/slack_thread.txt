@@ -1,0 +1,20 @@
+John (PM) - 10:30 AM
+We need to add password reset functionality to the auth system. Users should be able to request a reset via email.
+
+Sarah (Backend) - 10:32 AM
+Makes sense. Should we use a time-limited token or a one-time code?
+
+John (PM) - 10:35 AM
+Let's go with a time-limited token. 24 hours should be enough.
+
+Mike (Security) - 10:40 AM
+24 hours is too long. Industry standard is 15-30 minutes for password reset tokens. Let's do 30 minutes max.
+
+John (PM) - 10:42 AM
+Good point. 30 minutes it is. Also, we need rate limiting on the reset endpoint. Max 3 requests per email per hour.
+
+Sarah (Backend) - 10:45 AM
+Agreed. I'll also add email verification before sending the reset link. We don't want to leak whether an email exists in our system.
+
+John (PM) - 10:48 AM
+Perfect. Let's also log all reset attempts for audit. This is a compliance requirement from the security review.

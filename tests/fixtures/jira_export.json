@@ -1,0 +1,73 @@
+{
+  "issues": [
+    {
+      "key": "AUTH-101",
+      "fields": {
+        "summary": "Implement OAuth2 authorization code flow",
+        "description": "As a user, I want to authenticate via OAuth2 authorization code flow so that I can securely access the API.\n\nAcceptance Criteria:\n- Support Google and GitHub as identity providers\n- Redirect back to the app after successful auth\n- Store tokens securely in the session",
+        "priority": {"name": "High"},
+        "status": {"name": "To Do"},
+        "labels": ["auth", "security", "mvp"],
+        "assignee": {"displayName": "Sarah Developer"},
+        "issuelinks": [
+          {
+            "type": {"name": "Blocks"},
+            "outwardIssue": {"key": "AUTH-103"}
+          }
+        ],
+        "comment": {
+          "comments": [
+            {
+              "author": {"displayName": "John PM"},
+              "body": "This is blocking the frontend team. Please prioritize."
+            },
+            {
+              "author": {"displayName": "Mike Security"},
+              "body": "Make sure to validate the state parameter to prevent CSRF attacks."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "AUTH-102",
+      "fields": {
+        "summary": "Implement client credentials flow",
+        "description": "Implement OAuth2 client credentials flow for service-to-service authentication.\n\nThis is for internal microservices that need to call our API.",
+        "priority": {"name": "Medium"},
+        "status": {"name": "In Progress"},
+        "labels": ["auth", "internal"],
+        "assignee": {"displayName": "Sarah Developer"},
+        "issuelinks": [],
+        "comment": {
+          "comments": []
+        }
+      }
+    },
+    {
+      "key": "AUTH-103",
+      "fields": {
+        "summary": "Add token refresh endpoint",
+        "description": "Create an endpoint that accepts a refresh token and returns a new access token.\n\n- Validate refresh token hasn't expired\n- Rotate refresh token on use (one-time use)\n- Return new access + refresh token pair",
+        "priority": {"name": "High"},
+        "status": {"name": "To Do"},
+        "labels": ["auth", "mvp"],
+        "assignee": null,
+        "issuelinks": [
+          {
+            "type": {"name": "Blocks"},
+            "inwardIssue": {"key": "AUTH-101"}
+          }
+        ],
+        "comment": {
+          "comments": [
+            {
+              "author": {"displayName": "Sarah Developer"},
+              "body": "Should we implement token rotation here? It's more secure but adds complexity."
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

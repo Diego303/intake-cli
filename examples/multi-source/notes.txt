@@ -1,0 +1,28 @@
+Meeting Notes - Cart Feature Planning (2024-11-15)
+
+Attendees: PM, Tech Lead, Frontend Dev, Backend Dev
+
+Key decisions:
+- Cart data stored in PostgreSQL, not Redis. We need persistence and
+  transactional guarantees. Redis can be used as a cache layer later.
+- Guest carts: allow unauthenticated users to add items. When they log in
+  or register, merge the guest cart into their account cart. If there are
+  conflicts (same item in both), keep the higher quantity.
+- Price changes: if a product price changes while it's in someone's cart,
+  show the updated price on next cart view. Don't silently charge a
+  different amount. Show a "price changed" indicator.
+- Max 50 unique items per cart. If someone tries to add more, show an
+  error message.
+- Tax calculation: use a tax service (TaxJar or similar) at checkout time,
+  not when items are added to cart. Tax depends on shipping address which
+  we don't have until checkout.
+
+Open questions:
+- Should we support "Save for Later" in v1 or defer to v2?
+  Decision: defer to v2
+- Multi-currency support? Decision: USD only for v1, multi-currency in v2
+
+Performance targets:
+- GET /api/cart should respond in <100ms for carts with up to 50 items
+- Add to cart should respond in <200ms
+- Checkout validation (stock check) should complete in <500ms

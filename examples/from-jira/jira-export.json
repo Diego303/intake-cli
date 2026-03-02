@@ -1,0 +1,73 @@
+{
+  "issues": [
+    {
+      "key": "PAY-001",
+      "fields": {
+        "summary": "Implement Stripe payment integration",
+        "description": "Integrate Stripe as the primary payment processor.\n\nAcceptance Criteria:\n- Support credit card payments (Visa, Mastercard, Amex)\n- Handle 3D Secure authentication\n- Store payment methods securely (Stripe tokens, never raw card data)\n- Support refunds (full and partial)\n- Webhook handler for async payment events",
+        "priority": {"name": "High"},
+        "status": {"name": "To Do"},
+        "labels": ["payments", "stripe", "mvp"],
+        "assignee": {"displayName": "Alex Backend"},
+        "issuelinks": [
+          {
+            "type": {"name": "Blocks"},
+            "outwardIssue": {"key": "PAY-003"}
+          }
+        ],
+        "comment": {
+          "comments": [
+            {
+              "author": {"displayName": "Lisa PM"},
+              "body": "Use Stripe's Payment Intents API, not the legacy Charges API. This gives us SCA compliance for free."
+            },
+            {
+              "author": {"displayName": "Mark Security"},
+              "body": "Make sure we're PCI DSS compliant. Use Stripe.js on the frontend so card data never hits our servers."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "PAY-002",
+      "fields": {
+        "summary": "Implement invoice generation",
+        "description": "Generate PDF invoices for completed payments.\n\nAcceptance Criteria:\n- Auto-generate invoice after successful payment\n- Include: company details, line items, tax breakdown, total\n- Support multiple currencies (USD, EUR, GBP)\n- Store invoices in S3 with 7-year retention\n- Email invoice to customer automatically",
+        "priority": {"name": "Medium"},
+        "status": {"name": "To Do"},
+        "labels": ["payments", "invoicing"],
+        "assignee": {"displayName": "Alex Backend"},
+        "issuelinks": [],
+        "comment": {
+          "comments": [
+            {
+              "author": {"displayName": "Finance Team"},
+              "body": "Invoice numbers must be sequential and never have gaps. This is a legal requirement."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "PAY-003",
+      "fields": {
+        "summary": "Build payment dashboard for admins",
+        "description": "Create an admin dashboard showing payment analytics.\n\nFeatures:\n- Daily/weekly/monthly revenue charts\n- Transaction list with search and filters\n- Refund management interface\n- Failed payment alerts\n- Export to CSV",
+        "priority": {"name": "Low"},
+        "status": {"name": "Backlog"},
+        "labels": ["payments", "admin", "dashboard"],
+        "assignee": null,
+        "issuelinks": [
+          {
+            "type": {"name": "Is blocked by"},
+            "inwardIssue": {"key": "PAY-001"}
+          }
+        ],
+        "comment": {
+          "comments": []
+        }
+      }
+    }
+  ]
+}

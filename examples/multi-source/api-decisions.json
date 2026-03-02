@@ -1,0 +1,68 @@
+{
+  "issues": [
+    {
+      "key": "CART-010",
+      "fields": {
+        "summary": "Design cart API endpoints",
+        "description": "Define REST API for cart operations.\n\nEndpoints needed:\n- POST /api/cart/items — Add item to cart\n- PATCH /api/cart/items/{id} — Update quantity\n- DELETE /api/cart/items/{id} — Remove item\n- GET /api/cart — Get current cart with totals\n- POST /api/cart/coupon — Apply coupon code\n- DELETE /api/cart/coupon — Remove coupon\n\nAll endpoints require authentication. Cart is per-user, identified by JWT.",
+        "priority": {"name": "High"},
+        "status": {"name": "In Progress"},
+        "labels": ["cart", "api", "mvp"],
+        "assignee": {"displayName": "Backend Team"},
+        "issuelinks": [],
+        "comment": {
+          "comments": [
+            {
+              "author": {"displayName": "Tech Lead"},
+              "body": "Use optimistic locking on cart updates to prevent race conditions. Include a version field in the cart response and require it on mutations."
+            },
+            {
+              "author": {"displayName": "Frontend Dev"},
+              "body": "Please include product image URL and stock availability in the GET /api/cart response so we don't need a separate call."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "CART-011",
+      "fields": {
+        "summary": "Handle inventory validation on checkout",
+        "description": "When user proceeds to checkout, validate that all cart items are still in stock.\n\nAcceptance Criteria:\n- Check stock for all items in a single DB query\n- If any item is out of stock, return 409 with details of which items\n- Reserve inventory during checkout (15 min TTL)\n- Release reservation if checkout is abandoned or fails",
+        "priority": {"name": "High"},
+        "status": {"name": "To Do"},
+        "labels": ["cart", "inventory", "mvp"],
+        "assignee": null,
+        "issuelinks": [
+          {
+            "type": {"name": "Blocks"},
+            "outwardIssue": {"key": "CART-012"}
+          }
+        ],
+        "comment": {
+          "comments": []
+        }
+      }
+    },
+    {
+      "key": "CART-012",
+      "fields": {
+        "summary": "Implement cart abandonment tracking",
+        "description": "Track carts that are created but never checked out for analytics.\n\n- Log cart abandonment events after 24h of inactivity\n- Store: items in cart, total value, last activity timestamp\n- Weekly report of abandonment rate and top abandoned products",
+        "priority": {"name": "Low"},
+        "status": {"name": "Backlog"},
+        "labels": ["cart", "analytics"],
+        "assignee": null,
+        "issuelinks": [
+          {
+            "type": {"name": "Is blocked by"},
+            "inwardIssue": {"key": "CART-011"}
+          }
+        ],
+        "comment": {
+          "comments": []
+        }
+      }
+    }
+  ]
+}

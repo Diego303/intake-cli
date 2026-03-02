@@ -1,0 +1,22 @@
+[
+  {
+    "key": "PAY-001",
+    "fields": {
+      "summary": "Implement Stripe payment integration",
+      "description": "Integrate Stripe API for processing credit card payments.",
+      "priority": {"name": "High"},
+      "status": {"name": "To Do"},
+      "labels": ["payments"]
+    }
+  },
+  {
+    "key": "PAY-002",
+    "fields": {
+      "summary": "Add payment receipt generation",
+      "description": "Generate and email PDF receipts after successful payments.",
+      "priority": {"name": "Medium"},
+      "status": {"name": "To Do"},
+      "labels": ["payments", "notifications"]
+    }
+  }
+]

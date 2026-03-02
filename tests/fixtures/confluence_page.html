@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authentication RFC - Project Wiki</title>
+    <meta name="author" content="John Architect">
+    <meta name="date" content="2024-01-15">
+    <meta name="confluence-space" content="PROJ">
+</head>
+<body>
+    <div id="main-content" class="wiki-content">
+        <h1>RFC: Authentication System Design</h1>
+
+        <div class="confluence-information-macro">
+            <p><strong>Status:</strong> Draft</p>
+            <p><strong>Author:</strong> John Architect</p>
+            <p><strong>Last Updated:</strong> 2024-01-15</p>
+        </div>
+
+        <h2>Overview</h2>
+        <p>This RFC describes the authentication system architecture for our new API platform.
+        We will use OAuth2 with JWT tokens for stateless authentication.</p>
+
+        <h2>Architecture Decision</h2>
+        <p>After evaluating several options, we've decided on the following architecture:</p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Technology</th>
+                    <th>Justification</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Auth Server</td>
+                    <td>Custom (Python/FastAPI)</td>
+                    <td>Full control over token lifecycle</td>
+                </tr>
+                <tr>
+                    <td>Token Format</td>
+                    <td>JWT (RS256)</td>
+                    <td>Stateless, verifiable by any service</td>
+                </tr>
+                <tr>
+                    <td>Token Store</td>
+                    <td>Redis</td>
+                    <td>Fast lookup for refresh tokens</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Security Requirements</h2>
+        <ul>
+            <li>All endpoints must use HTTPS</li>
+            <li>Access tokens expire after 15 minutes</li>
+            <li>Refresh tokens expire after 7 days</li>
+            <li>Failed login attempts are rate-limited (5 per minute per IP)</li>
+        </ul>
+
+        <h2>Open Questions</h2>
+        <ol>
+            <li>Should we support SAML for enterprise clients?</li>
+            <li>Do we need to support multi-factor authentication in V1?</li>
+        </ol>
+    </div>
+</body>
+</html>

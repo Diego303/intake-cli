@@ -1,0 +1,26 @@
+We need a notification system for the platform. Here's what I'm thinking:
+
+Real-time notifications via WebSocket - when something happens (new message,
+payment received, task assigned) the user should see it immediately without
+refreshing the page. Show a badge on the bell icon with unread count.
+
+Also need email notifications for important stuff - payment confirmations,
+security alerts (new login from unknown device), and weekly digest of activity.
+Users should be able to configure which notifications they get via email vs
+just in-app. There should be a preferences page for this.
+
+Push notifications for mobile would be nice but can wait for v2.
+
+For the backend: we need a notification service that handles routing - decides
+whether to send in-app, email, or both based on user preferences and
+notification type. Should be async so it doesn't slow down the main app.
+
+Store notifications in a DB so users can scroll back through history.
+Mark as read/unread. "Mark all as read" button.
+
+Rate limiting is important - don't spam users with 50 notifications in
+a minute if someone bulk-updates stuff. Batch them into a single
+"X things happened" notification.
+
+Tech stack: we use Python/FastAPI, React frontend, PostgreSQL, Redis for
+caching. Already have SendGrid for transactional email.
