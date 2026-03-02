@@ -1,0 +1,39 @@
+project:
+  name: Payment Gateway
+  version: "1.0"
+
+requirements:
+  - id: FR-01
+    title: Process Credit Card Payment
+    description: >
+      When a customer submits a payment with a valid credit card,
+      the system shall process the payment via Stripe API and
+      return a confirmation with transaction ID.
+    priority: high
+    acceptance_criteria:
+      - Payment processed within 5 seconds
+      - Transaction ID returned in response
+      - Failed payments return appropriate error codes
+
+  - id: FR-02
+    title: Generate Invoice
+    description: >
+      After a successful payment, the system shall generate a PDF
+      invoice and email it to the customer.
+    priority: medium
+    acceptance_criteria:
+      - Invoice generated within 30 seconds
+      - PDF contains all transaction details
+      - Email delivered to customer address
+
+  - id: NFR-01
+    title: Payment Processing Latency
+    description: >
+      99th percentile payment processing latency shall not exceed
+      3 seconds under normal load (up to 100 concurrent payments).
+    priority: high
+
+dependencies:
+  - stripe-api
+  - sendgrid
+  - pdf-generation

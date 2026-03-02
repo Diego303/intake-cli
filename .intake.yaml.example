@@ -1,0 +1,55 @@
+# intake configuration
+# Copy this file to .intake.yaml and customize as needed.
+# All values shown below are the defaults — only override what you need.
+#
+# Configuration priority (highest wins):
+#   CLI flags > .intake.yaml > preset > hardcoded defaults
+
+# LLM settings for requirement analysis
+llm:
+  model: claude-sonnet-4           # Any model supported by LiteLLM
+  api_key_env: ANTHROPIC_API_KEY     # Environment variable holding the API key
+  max_cost_per_spec: 0.50           # Budget limit per spec generation (USD)
+  temperature: 0.2                   # Lower = more deterministic
+  max_retries: 3                     # Retry count on LLM failures
+  timeout: 120                       # Timeout per LLM call (seconds)
+
+# Project metadata
+project:
+  name: ""                           # Auto-detected from description if empty
+  stack: []                          # Auto-detected from project files if empty
+  language: en                       # Language for generated spec content
+  conventions: {}                    # Custom conventions: { "testing": "pytest", ... }
+
+# Spec generation settings
+spec:
+  output_dir: ./specs                # Where to write generated specs
+  requirements_format: ears          # ears | user-stories | bdd | free
+  design_depth: moderate             # minimal | moderate | detailed
+  task_granularity: medium           # coarse | medium | fine
+  include_sources: true              # Include source traceability in spec
+  version_specs: true                # Create versioned spec directories
+  generate_lock: true                # Generate spec.lock.yaml for reproducibility
+  risk_assessment: true              # Include risk matrix in analysis
+
+# Verification settings
+verification:
+  auto_generate_tests: true          # Generate acceptance checks from requirements
+  test_output_dir: ./tests/generated # Where to write generated tests
+  checks: []                         # Additional custom checks
+  timeout_per_check: 120             # Timeout per acceptance check (seconds)
+
+# Export settings
+export:
+  default_format: generic            # architect | generic (claude-code, cursor, kiro: planned)
+  architect_include_guardrails: true # Include guardrails in architect pipeline
+  architect_pipeline_template: standard
+  claude_code_generate_claude_md: true
+
+# Security settings
+security:
+  redact_patterns: []                # Regex patterns to redact from spec output
+  redact_files:                      # File patterns to never include
+    - "*.env"
+    - "*.pem"
+    - "*.key"
