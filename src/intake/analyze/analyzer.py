@@ -145,10 +145,7 @@ class Analyzer:
         """
         parts: list[str] = []
         for i, source in enumerate(sources, 1):
-            header = (
-                f"=== SOURCE {i}: {source.source} "
-                f"(format: {source.format}) ==="
-            )
+            header = f"=== SOURCE {i}: {source.source} (format: {source.format}) ==="
             parts.append(f"{header}\n\n{source.text}")
         return "\n\n---\n\n".join(parts)
 

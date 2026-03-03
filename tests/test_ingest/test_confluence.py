@@ -33,17 +33,13 @@ class TestConfluenceParser:
     def test_cannot_parse_nonexistent(self, parser: ConfluenceParser) -> None:
         assert parser.can_parse("/nonexistent/file.html") is False
 
-    def test_parse_extracts_text(
-        self, parser: ConfluenceParser, confluence_fixture: Path
-    ) -> None:
+    def test_parse_extracts_text(self, parser: ConfluenceParser, confluence_fixture: Path) -> None:
         result = parser.parse(str(confluence_fixture))
         assert result.format == "confluence"
         assert "Authentication" in result.text
         assert "OAuth2" in result.text
 
-    def test_parse_extracts_title(
-        self, parser: ConfluenceParser, confluence_fixture: Path
-    ) -> None:
+    def test_parse_extracts_title(self, parser: ConfluenceParser, confluence_fixture: Path) -> None:
         result = parser.parse(str(confluence_fixture))
         assert "title" in result.metadata
 

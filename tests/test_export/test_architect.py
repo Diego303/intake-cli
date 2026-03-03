@@ -25,39 +25,37 @@ def spec_dir(tmp_path: Path) -> Path:
         "### FR-01: User login\n\nUsers can log in with email and password.\n\n"
         "### FR-02: User registration\n\nUsers can register a new account.\n"
     )
-    (spec / "design.md").write_text(
-        "# Design\n\n## Components\n\n- Auth service\n- User service\n"
-    )
+    (spec / "design.md").write_text("# Design\n\n## Components\n\n- Auth service\n- User service\n")
     (spec / "tasks.md").write_text(
         "# Tasks\n\n"
         "### Task 1: Set up project\n\nInitialize the project structure.\n\n"
         "### Task 2: Implement login\n\nCreate the login endpoint.\n\n"
         "### Task 3: Implement registration\n\nCreate the registration endpoint.\n"
     )
-    (spec / "acceptance.yaml").write_text(yaml.dump({
-        "checks": [
+    (spec / "acceptance.yaml").write_text(
+        yaml.dump(
             {
-                "id": "unit-tests",
-                "name": "Unit tests pass",
-                "type": "command",
-                "command": "pytest tests/ -q",
-                "required": True,
-            },
-            {
-                "id": "login-endpoint",
-                "name": "Login endpoint exists",
-                "type": "files_exist",
-                "paths": ["src/auth/login.py"],
-                "required": True,
-            },
-        ],
-    }))
-    (spec / "context.md").write_text(
-        "# Context\n\nProject: test-auth\nStack: python, fastapi\n"
+                "checks": [
+                    {
+                        "id": "unit-tests",
+                        "name": "Unit tests pass",
+                        "type": "command",
+                        "command": "pytest tests/ -q",
+                        "required": True,
+                    },
+                    {
+                        "id": "login-endpoint",
+                        "name": "Login endpoint exists",
+                        "type": "files_exist",
+                        "paths": ["src/auth/login.py"],
+                        "required": True,
+                    },
+                ],
+            }
+        )
     )
-    (spec / "sources.md").write_text(
-        "# Sources\n\n- requirements.md\n"
-    )
+    (spec / "context.md").write_text("# Context\n\nProject: test-auth\nStack: python, fastapi\n")
+    (spec / "sources.md").write_text("# Sources\n\n- requirements.md\n")
 
     return spec
 

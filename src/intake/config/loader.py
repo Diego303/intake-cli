@@ -111,9 +111,7 @@ def _merge_yaml(config: IntakeConfig, path: Path) -> IntakeConfig:
     return config.model_copy(update=updates)
 
 
-def _merge_overrides(
-    config: IntakeConfig, overrides: dict[str, Any]
-) -> IntakeConfig:
+def _merge_overrides(config: IntakeConfig, overrides: dict[str, Any]) -> IntakeConfig:
     """Merge CLI overrides into the config.
 
     Overrides use dotted notation: ``llm.model``, ``spec.output_dir``, etc.

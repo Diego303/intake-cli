@@ -23,8 +23,7 @@ def _sample_extraction_response() -> dict:
                 "id": "FR-01",
                 "title": "User authentication",
                 "description": (
-                    "When a user submits credentials, "
-                    "the system shall validate and return a token."
+                    "When a user submits credentials, the system shall validate and return a token."
                 ),
                 "acceptance_criteria": ["AC-01.1: Returns JWT on valid login"],
                 "source": "Source 1",

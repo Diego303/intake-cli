@@ -202,21 +202,25 @@ class DoctorChecks:
         for module, description in OPTIONAL_DEPENDENCIES.items():
             try:
                 __import__(module)
-                results.append(DiagnosticResult(
-                    name=description,
-                    passed=True,
-                    message="Installed",
-                ))
+                results.append(
+                    DiagnosticResult(
+                        name=description,
+                        passed=True,
+                        message="Installed",
+                    )
+                )
             except ImportError:
                 pip_name = IMPORT_TO_PIP.get(module, module)
-                results.append(DiagnosticResult(
-                    name=description,
-                    passed=False,
-                    message="Not installed",
-                    fix_hint=f"pip install {pip_name}",
-                    auto_fixable=True,
-                    fix_action="install_package",
-                ))
+                results.append(
+                    DiagnosticResult(
+                        name=description,
+                        passed=False,
+                        message="Not installed",
+                        fix_hint=f"pip install {pip_name}",
+                        auto_fixable=True,
+                        fix_action="install_package",
+                    )
+                )
         return results
 
     def _check_config(self, config_path: str) -> DiagnosticResult:

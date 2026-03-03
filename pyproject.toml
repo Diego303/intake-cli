@@ -1,6 +1,6 @@
 [project]
 name = "intake-ai-cli"
-version = "0.1.0"
+version = "0.2.0"
 description = "From requirements in any format to verified implementation"
 readme = "README.md"
 license = {text = "MIT"}
@@ -50,14 +50,44 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "pytest-asyncio>=0.23",
+    "respx>=0.21",
     "ruff>=0.5",
     "mypy>=1.10",
     "types-PyYAML>=6.0",
     "types-beautifulsoup4>=4.12",
 ]
+connectors = [
+    "atlassian-python-api>=3.40",
+    "PyGithub>=2.0",
+]
+watch = [
+    "watchfiles>=0.21",
+]
+mcp = [
+    "mcp>=1.0",
+]
 
 [project.scripts]
 intake = "intake.cli:main"
+
+[project.entry-points."intake.parsers"]
+markdown = "intake.ingest.markdown:MarkdownParser"
+plaintext = "intake.ingest.plaintext:PlaintextParser"
+yaml = "intake.ingest.yaml_input:YamlInputParser"
+pdf = "intake.ingest.pdf:PdfParser"
+docx = "intake.ingest.docx:DocxParser"
+jira = "intake.ingest.jira:JiraParser"
+confluence = "intake.ingest.confluence:ConfluenceParser"
+image = "intake.ingest.image:ImageParser"
+url = "intake.ingest.url:UrlParser"
+slack = "intake.ingest.slack:SlackParser"
+github_issues = "intake.ingest.github_issues:GithubIssuesParser"
+
+[project.entry-points."intake.exporters"]
+architect = "intake.export.architect:ArchitectExporter"
+generic = "intake.export.generic:GenericExporter"
+
+[project.entry-points."intake.connectors"]
 
 [build-system]
 requires = ["hatchling"]
@@ -95,3 +125,7 @@ warn_unused_configs = true
 testpaths = ["tests"]
 addopts = "--tb=short -q"
 asyncio_mode = "auto"
+
+[project.urls]
+Homepage = "https://diego303.github.io/intake-docs/"
+Repository = "https://github.com/Diego303/intake-cli"

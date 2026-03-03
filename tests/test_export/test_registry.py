@@ -54,3 +54,23 @@ def test_exporters_satisfy_protocol() -> None:
     """Both exporters satisfy the Exporter protocol."""
     assert isinstance(ArchitectExporter(), Exporter)
     assert isinstance(GenericExporter(), Exporter)
+
+
+def test_plugin_discovery_finds_exporters() -> None:
+    """Plugin discovery via entry_points finds all built-in exporters."""
+    registry = create_default_registry(use_plugins=True)
+    assert "architect" in registry.available_formats
+    assert "generic" in registry.available_formats
+
+
+def test_manual_fallback_works() -> None:
+    """Manual fallback creates the same set of exporters."""
+    registry = create_default_registry(use_plugins=False)
+    assert registry.available_formats == ["architect", "generic"]
+
+
+def test_plugin_and_manual_produce_same_formats() -> None:
+    """Plugin discovery and manual registration produce the same formats."""
+    plugin_registry = create_default_registry(use_plugins=True)
+    manual_registry = create_default_registry(use_plugins=False)
+    assert plugin_registry.available_formats == manual_registry.available_formats

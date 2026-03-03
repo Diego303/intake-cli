@@ -63,9 +63,7 @@ class PresetError(Exception):
     def __init__(self, preset_name: str) -> None:
         self.preset_name = preset_name
         available = ", ".join(PRESET_NAMES)
-        super().__init__(
-            f"Unknown preset '{preset_name}'. Available presets: {available}"
-        )
+        super().__init__(f"Unknown preset '{preset_name}'. Available presets: {available}")
 
 
 def apply_preset(config: IntakeConfig, preset_name: str) -> IntakeConfig:

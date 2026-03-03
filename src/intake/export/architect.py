@@ -109,16 +109,19 @@ class ArchitectExporter:
 
         # Final verification step with all required command checks
         required_commands = [
-            str(c["command"]) for c in checks
+            str(c["command"])
+            for c in checks
             if c.get("type") == "command" and c.get("required", True) and c.get("command")
         ]
         if required_commands:
-            steps.append({
-                "name": "final-verification",
-                "agent": "review",
-                "prompt": "Verify that the entire implementation meets the spec requirements.",
-                "checks": required_commands,
-            })
+            steps.append(
+                {
+                    "name": "final-verification",
+                    "agent": "review",
+                    "prompt": "Verify that the entire implementation meets the spec requirements.",
+                    "checks": required_commands,
+                }
+            )
 
         return {
             "name": spec_name,
@@ -149,7 +152,9 @@ class ArchitectExporter:
         for line in content.splitlines():
             # Match task headings: ### Task 1: Title or ### 1: Title or ### 1. Title
             match = re.match(
-                r"^###?\s+(?:Task\s+)?(\d+)[:.]\s*(.*)", line, re.IGNORECASE,
+                r"^###?\s+(?:Task\s+)?(\d+)[:.]\s*(.*)",
+                line,
+                re.IGNORECASE,
             )
             if match:
                 # Save previous task

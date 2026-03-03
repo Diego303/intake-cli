@@ -165,7 +165,8 @@ async def test_retries_on_failure() -> None:
         patch("litellm.completion_cost", return_value=0.001),
     ):
         result = await adapter.completion(
-            system_prompt="Test", user_prompt="Test",
+            system_prompt="Test",
+            user_prompt="Test",
         )
 
     assert result == "OK"

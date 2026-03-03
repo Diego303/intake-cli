@@ -156,10 +156,7 @@ class UnsupportedFormatError(IngestError):
     def __init__(self, source: str, detected_format: str) -> None:
         self.source = source
         self.detected_format = detected_format
-        super().__init__(
-            f"No parser available for format '{detected_format}' "
-            f"(source: '{source}')"
-        )
+        super().__init__(f"No parser available for format '{detected_format}' (source: '{source}')")
 
 
 @dataclass

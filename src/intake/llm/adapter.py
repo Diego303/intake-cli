@@ -46,14 +46,8 @@ class CostLimitError(LLMError):
         self.accumulated = accumulated
         self.limit = limit
         super().__init__(
-            reason=(
-                f"Accumulated cost ${accumulated:.4f} exceeds limit "
-                f"of ${limit:.2f}"
-            ),
-            suggestion=(
-                "Increase llm.max_cost_per_spec in your config, "
-                "or use a cheaper model."
-            ),
+            reason=(f"Accumulated cost ${accumulated:.4f} exceeds limit of ${limit:.2f}"),
+            suggestion=("Increase llm.max_cost_per_spec in your config, or use a cheaper model."),
         )
 
 
@@ -114,7 +108,6 @@ class LLMAdapter:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
-
 
         for attempt in range(1, self.config.max_retries + 1):
             try:
@@ -215,6 +208,7 @@ class LLMAdapter:
 
         try:
             from litellm import completion_cost
+
             cost = completion_cost(completion_response=response)
             self.total_cost += cost
         except Exception:

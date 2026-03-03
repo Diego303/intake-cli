@@ -75,7 +75,12 @@ class TerminalReporter:
                 details = details[:77] + "..."
 
             table.add_row(
-                result.id, result.name, status, required, duration, details,
+                result.id,
+                result.name,
+                status,
+                required,
+                duration,
+                details,
             )
 
         console.print(table)
@@ -200,7 +205,6 @@ def get_reporter(format_name: str) -> Reporter:
     reporter = reporters.get(format_name)
     if reporter is None:
         raise ValueError(
-            f"Unknown report format: {format_name}. "
-            f"Valid formats: {', '.join(reporters.keys())}"
+            f"Unknown report format: {format_name}. Valid formats: {', '.join(reporters.keys())}"
         )
     return reporter

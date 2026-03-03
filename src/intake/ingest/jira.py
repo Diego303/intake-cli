@@ -80,8 +80,7 @@ class JiraParser:
                 source=source,
                 reason="No issues found in Jira export",
                 suggestion=(
-                    "Verify the JSON contains an 'issues' array "
-                    "or is a list of issue objects."
+                    "Verify the JSON contains an 'issues' array or is a list of issue objects."
                 ),
             )
 
@@ -95,10 +94,12 @@ class JiraParser:
 
             section_text = self._format_issue(key, fields)
             text_parts.append(section_text)
-            sections.append({
-                "title": f"{key}: {fields.get('summary', 'Untitled')}",
-                "content": section_text,
-            })
+            sections.append(
+                {
+                    "title": f"{key}: {fields.get('summary', 'Untitled')}",
+                    "content": section_text,
+                }
+            )
 
             for link in self._extract_links(fields):
                 relations.append(link)
@@ -204,23 +205,25 @@ class JiraParser:
             link_type = self._safe_nested(link, "type", "name", default="relates to")
             if "outwardIssue" in link:
                 target = link["outwardIssue"].get("key", "")
-                links.append({
-                    "type": link_type,
-                    "direction": "outward",
-                    "target": target,
-                })
+                links.append(
+                    {
+                        "type": link_type,
+                        "direction": "outward",
+                        "target": target,
+                    }
+                )
             if "inwardIssue" in link:
                 target = link["inwardIssue"].get("key", "")
-                links.append({
-                    "type": link_type,
-                    "direction": "inward",
-                    "target": target,
-                })
+                links.append(
+                    {
+                        "type": link_type,
+                        "direction": "inward",
+                        "target": target,
+                    }
+                )
         return links
 
-    def _safe_nested(
-        self, data: dict[str, Any], *keys: str, default: str = ""
-    ) -> str:
+    def _safe_nested(self, data: dict[str, Any], *keys: str, default: str = "") -> str:
         """Safely extract a value from nested dicts."""
         current: Any = data
         for key in keys:

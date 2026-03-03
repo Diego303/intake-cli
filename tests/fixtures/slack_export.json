@@ -1,0 +1,65 @@
+[
+  {
+    "type": "message",
+    "user": "U01ALICE",
+    "text": "We need to redesign the notification system. The current one is too slow and users are missing critical alerts.",
+    "ts": "1706800200.000100",
+    "reactions": []
+  },
+  {
+    "type": "message",
+    "user": "U02BOB",
+    "text": "Agreed. I've been looking into this. The main bottleneck is the synchronous email sending in the request cycle.",
+    "ts": "1706800320.000200",
+    "thread_ts": "1706800200.000100",
+    "reactions": []
+  },
+  {
+    "type": "message",
+    "user": "U01ALICE",
+    "text": "Let's go with an async queue-based approach using Redis and Celery. That should decouple the sending from the API request.",
+    "ts": "1706800500.000300",
+    "thread_ts": "1706800200.000100",
+    "reactions": [
+      {
+        "name": "thumbsup",
+        "users": ["U02BOB", "U03CAROL"],
+        "count": 2
+      }
+    ]
+  },
+  {
+    "type": "message",
+    "user": "U03CAROL",
+    "text": "TODO: Set up the Celery worker configuration and Redis connection pooling before we start migrating handlers.",
+    "ts": "1706800680.000400",
+    "reactions": []
+  },
+  {
+    "type": "message",
+    "user": "U02BOB",
+    "text": "I also think we need to add support for push notifications in addition to email. Mobile users have been requesting this.",
+    "ts": "1706800800.000500",
+    "reactions": []
+  },
+  {
+    "type": "message",
+    "user": "U01ALICE",
+    "text": "Good idea. Action item: Bob will research push notification providers (Firebase, OneSignal) and report back by Friday.",
+    "ts": "1706800920.000600",
+    "reactions": []
+  },
+  {
+    "type": "message",
+    "user": "U03CAROL",
+    "text": "Decided: We will implement the notification queue first, then add push notifications in phase 2. Target launch is end of February.",
+    "ts": "1706801100.000700",
+    "reactions": [
+      {
+        "name": "white_check_mark",
+        "users": ["U01ALICE", "U02BOB"],
+        "count": 2
+      }
+    ]
+  }
+]

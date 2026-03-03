@@ -1,18 +1,20 @@
-# intake V0 — Seguimiento de Implementación
+# intake — Seguimiento de Implementación
 
-> Tracking detallado del progreso de implementación del MVP (V0).
-> Actualizado: 2026-03-02 (Week 4 completada)
+> Tracking detallado del progreso de implementación.
+> Actualizado: 2026-03-03 (Phase 1 v0.2.0 completada)
 
 ---
 
 ## Estado General
 
-| Semana | Fase | Estado | Tests | Coverage |
-|--------|------|--------|-------|----------|
-| **Week 1** | Scaffolding + Parsers | **Completada** | 135/135 | 79% |
-| **Week 2** | LLM Analysis + Generation | **Completada** | 217/217 | 85% |
-| **Week 3** | Verification + Export + Features | **Completada** | 289/289 | 84% |
-| **Week 4** | Documentation + Polish + Release | **Completada** | 313/313 | 83% |
+| Versión | Fase | Estado | Tests |
+|---------|------|--------|-------|
+| **v0.1.0** | Week 1: Scaffolding + Parsers | **Completada** | 135/135 |
+| **v0.1.0** | Week 2: LLM Analysis + Generation | **Completada** | 217/217 |
+| **v0.1.0** | Week 3: Verification + Export + Features | **Completada** | 289/289 |
+| **v0.1.0** | Week 4: Documentation + Polish | **Completada** | 313/313 |
+| **v0.2.0** | Phase 1: Plugin System + Refactor | **Completada** | 492/492 |
+| **v0.2.0** | QA Audit Phase 1 | **Aprobada** | 492/492 (86% cov, 0 mypy, 0 ruff) |
 
 ---
 
@@ -388,6 +390,19 @@
 | `python3.12 -m pytest tests/ -q` | ✅ | 313 passed in 20s |
 | `python3.12 -m ruff check src/ tests/` | ✅ | All checks passed! |
 | `python3.12 -m mypy src/ --strict` | ✅ | Success: no issues found in 51 source files |
+
+### Quality Gates Phase 1 (Post-QA) ✅
+
+| Gate | Estado | Resultado |
+|------|--------|-----------|
+| `python3.12 -m pytest tests/` | ✅ | 492 passed in 23s |
+| `ruff check src/ tests/` | ✅ | All checks passed! |
+| `ruff format --check src/ tests/` | ✅ | 119 files already formatted |
+| `mypy src/intake/ --strict` | ✅ | Success: no issues found in 64 source files |
+| Coverage global | ✅ | 86% (target: 65%) |
+| `intake --version` | ✅ | 0.2.0 |
+| `intake plugins list` | ✅ | 13 plugins descubiertos |
+| `intake plugins check` | ✅ | All 13 compatible |
 | PyPI release | ⬜ | Controlado por el usuario |
 
 ---
@@ -421,3 +436,284 @@
 13. **CLI _slugify**: Convierte descripciones a slugs para nombres de directorio (lowercase, hyphens, max 50 chars).
 
 14. **setup_logging con cache_logger_on_first_use=False**: Cambiado de `True` a `False` para compatibilidad con tests. Los module-level loggers necesitan reconfigurarse entre tests.
+
+---
+
+## Phase 1 — Plugin System + Refactor (v0.2.0) ✅
+
+> Implementada: 2026-03-03
+> Objetivo: Transformar la arquitectura hardcodeada en un sistema extensible con plugins via entry_points (PEP 621).
+
+### Step 1: Plugin Protocols ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| PluginMeta | `src/intake/plugins/protocols.py` | ✅ | Dataclass: name, version, description, author |
+| ExportResult | `src/intake/plugins/protocols.py` | ✅ | Dataclass: files_created, primary_file, instructions |
+| FetchedSource | `src/intake/plugins/protocols.py` | ✅ | Dataclass: local_path, original_uri, format_hint, metadata |
+| ParserPlugin | `src/intake/plugins/protocols.py` | ✅ | Protocol V2: meta, supported_extensions, confidence, can_parse, parse |
+| ExporterPlugin | `src/intake/plugins/protocols.py` | ✅ | Protocol V2: meta, supported_agents, export → ExportResult |
+| ConnectorPlugin | `src/intake/plugins/protocols.py` | ✅ | Protocol V2: meta, uri_schemes, can_handle, fetch (async), validate_config |
+| PluginError | `src/intake/plugins/protocols.py` | ✅ | Base exception |
+| PluginLoadError | `src/intake/plugins/protocols.py` | ✅ | Load-time error con plugin_name + group |
+
+### Step 2: Plugin Discovery ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| PluginInfo | `src/intake/plugins/discovery.py` | ✅ | Dataclass: name, group, module, distribution, version, is_builtin, is_v2, load_error |
+| PluginRegistry | `src/intake/plugins/discovery.py` | ✅ | discover_all, discover_group, get_parsers, get_exporters, get_connectors, list_plugins, check_compatibility |
+| create_registry | `src/intake/plugins/discovery.py` | ✅ | Factory function |
+| Entry point groups | — | ✅ | intake.parsers, intake.exporters, intake.connectors |
+
+### Step 3-4: Hooks + __init__ ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| HookEvent | `src/intake/plugins/hooks.py` | ✅ | Dataclass: name, data dict |
+| HookManager | `src/intake/plugins/hooks.py` | ✅ | register, emit, registered_events |
+| __init__.py | `src/intake/plugins/__init__.py` | ✅ | Exporta PluginRegistry, PluginInfo, PluginMeta, HookManager, etc. |
+
+### Step 5: Source URI Parsing ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| SourceURI | `src/intake/utils/source_uri.py` | ✅ | Dataclass: type, raw, path, params |
+| parse_source | `src/intake/utils/source_uri.py` | ✅ | stdin → schemes → http(s) → file → text |
+| SCHEME_PATTERNS | `src/intake/utils/source_uri.py` | ✅ | Regex compilados para jira://, confluence://, github:// |
+
+### Step 6-7: Connector Infrastructure ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| ConnectorError | `src/intake/connectors/base.py` | ✅ | Exception con reason + suggestion |
+| ConnectorNotFoundError | `src/intake/connectors/base.py` | ✅ | Exception con uri |
+| ConnectorRegistry | `src/intake/connectors/base.py` | ✅ | register, find_for_uri, fetch (async), validate_all, available_schemes |
+| __init__.py | `src/intake/connectors/__init__.py` | ✅ | Exporta ConnectorRegistry, ConnectorError, ConnectorNotFoundError |
+
+### Step 8-9: Registry Refactoring ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| ParserRegistry plugin support | `src/intake/ingest/registry.py` | ✅ | Optional plugin_registry param, discover_parsers() |
+| JSON subtype: Slack | `src/intake/ingest/registry.py` | ✅ | type:"message" + ts → slack |
+| JSON subtype: GitHub Issues | `src/intake/ingest/registry.py` | ✅ | number + html_url → github_issues |
+| Detection priority | `src/intake/ingest/registry.py` | ✅ | Jira > GitHub Issues > Slack > YAML |
+| ExporterRegistry plugin support | `src/intake/export/registry.py` | ✅ | Optional plugin_registry param, discover_exporters() |
+| Plugin-first create_default | Ambos registries | ✅ | Intenta plugins primero, fallback a manual |
+
+### Step 10: pyproject.toml ✅
+
+| Componente | Estado | Notas |
+|------------|--------|-------|
+| Version bump | ✅ | 0.1.0 → 0.2.0 |
+| intake.parsers entry points | ✅ | 11 parsers registrados |
+| intake.exporters entry points | ✅ | 2 exporters registrados |
+| intake.connectors entry points | ✅ | Grupo vacío (Phase 2) |
+| Optional deps: connectors | ✅ | atlassian-python-api, PyGithub |
+| Optional deps: watch | ✅ | watchfiles |
+| Optional deps: mcp | ✅ | mcp |
+| Dev deps: respx | ✅ | respx>=0.21 para HTTP mocking |
+
+### Step 11-13: 3 Nuevos Parsers ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| UrlParser | `src/intake/ingest/url.py` | ✅ | httpx + BS4 + markdownify, detecta tipo de fuente |
+| SlackParser | `src/intake/ingest/slack.py` | ✅ | Threads, decisions, action items |
+| GithubIssuesParser | `src/intake/ingest/github_issues.py` | ✅ | Labels, comments, cross-refs, single + array |
+| sample_webpage.html | `tests/fixtures/` | ✅ | HTML con título, headings, párrafos |
+| slack_export.json | `tests/fixtures/` | ✅ | 7 mensajes con threads, reactions, decisions |
+| github_issues.json | `tests/fixtures/` | ✅ | 3 issues con labels, comments, milestones |
+
+### Step 14-15: Complexity + Adaptive Generation ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| ComplexityAssessment | `src/intake/analyze/complexity.py` | ✅ | mode, total_words, source_count, confidence, reason |
+| classify_complexity | `src/intake/analyze/complexity.py` | ✅ | quick (<500w, 1 source), enterprise (4+ sources / >5000w), standard (default) |
+| STRUCTURED_FORMATS | `src/intake/analyze/complexity.py` | ✅ | jira, confluence, yaml, github_issues, slack |
+| GenerationPlan | `src/intake/generate/adaptive.py` | ✅ | mode, files_to_generate, design_depth, task_granularity, include_risks |
+| create_generation_plan | `src/intake/generate/adaptive.py` | ✅ | Respeta config overrides del usuario |
+| AdaptiveSpecBuilder | `src/intake/generate/adaptive.py` | ✅ | Wraps SpecBuilder, filtra archivos por modo |
+| QUICK_FILES | `src/intake/generate/adaptive.py` | ✅ | context.md + tasks.md |
+| STANDARD_FILES | `src/intake/generate/adaptive.py` | ✅ | Los 6 archivos |
+
+### Step 16: Task State Tracking ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| TaskItem.status | `src/intake/analyze/models.py` | ✅ | Campo `status: str = "pending"` |
+| tasks.md.j2 Status column | `src/intake/templates/tasks.md.j2` | ✅ | Columna Status en tabla + **Status:** en detalle |
+| TaskStatus | `src/intake/utils/task_state.py` | ✅ | Dataclass: id, title, status, description |
+| TaskStateManager | `src/intake/utils/task_state.py` | ✅ | list_tasks, get_task, update_task |
+| TaskStateError | `src/intake/utils/task_state.py` | ✅ | Exception con reason + suggestion |
+| VALID_STATUSES | `src/intake/utils/task_state.py` | ✅ | pending, in_progress, done, blocked |
+
+### Step 17: CLI Commands ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| `intake plugins list` | `src/intake/cli.py` | ✅ | Tabla Rich con plugins, verbose mode |
+| `intake plugins check` | `src/intake/cli.py` | ✅ | Valida compatibilidad, OK/FAIL por plugin |
+| `intake task list` | `src/intake/cli.py` | ✅ | Tabla con status, filtro --status |
+| `intake task update` | `src/intake/cli.py` | ✅ | Actualiza status, soporta --note |
+| `init --mode` option | `src/intake/cli.py` | ✅ | quick \| standard \| enterprise |
+| init: source URI parsing | `src/intake/cli.py` | ✅ | _resolve_and_parse_sources con parse_source() |
+| init: scheme URI warnings | `src/intake/cli.py` | ✅ | jira://, confluence://, github:// → "connector not available" |
+| init: complexity auto-detect | `src/intake/cli.py` | ✅ | classify_complexity cuando auto_mode=True |
+| init: AdaptiveSpecBuilder | `src/intake/cli.py` | ✅ | _generate_spec usa AdaptiveSpecBuilder |
+
+### Step 18: Config Schema ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| SpecConfig.auto_mode | `src/intake/config/schema.py` | ✅ | `auto_mode: bool = True` |
+| JiraConnectorConfig | `src/intake/config/schema.py` | ✅ | url, email, api_token_env |
+| ConfluenceConnectorConfig | `src/intake/config/schema.py` | ✅ | url, email, api_token_env |
+| GithubConnectorConfig | `src/intake/config/schema.py` | ✅ | token_env |
+| ConnectorsConfig | `src/intake/config/schema.py` | ✅ | jira, confluence, github sub-models |
+| IntakeConfig.connectors | `src/intake/config/schema.py` | ✅ | Campo añadido |
+
+### Step 19: Version + Exports ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| __version__ | `src/intake/__init__.py` | ✅ | "0.2.0" |
+| ingest __init__ | `src/intake/ingest/__init__.py` | ✅ | Exporta IngestError, UnsupportedFormatError |
+| export __init__ | `src/intake/export/__init__.py` | ✅ | Exporta ExportResult |
+
+### Tests Phase 1 ✅
+
+**179 tests nuevos, 492 total, 0 failures**
+
+| Test file | Tests | Estado |
+|-----------|-------|--------|
+| `tests/test_plugins/test_protocols.py` | 14 | ✅ |
+| `tests/test_plugins/test_discovery.py` | 12 | ✅ |
+| `tests/test_plugins/test_hooks.py` | 8 | ✅ |
+| `tests/test_connectors/test_base.py` | 11 | ✅ |
+| `tests/test_utils/test_source_uri.py` | 17 | ✅ |
+| `tests/test_utils/test_task_state.py` | 17 | ✅ |
+| `tests/test_ingest/test_url.py` | 14 | ✅ |
+| `tests/test_ingest/test_slack.py` | 13 | ✅ |
+| `tests/test_ingest/test_github_issues.py` | 16 | ✅ |
+| `tests/test_analyze/test_complexity.py` | 16 | ✅ |
+| `tests/test_generate/test_adaptive.py` | 16 | ✅ |
+| `tests/test_ingest/test_registry.py` | +8 | ✅ (plugin discovery + JSON subtypes) |
+| `tests/test_export/test_registry.py` | +3 | ✅ (plugin discovery) |
+| `tests/test_cli.py` | +14 | ✅ (plugins, task, init --mode) |
+
+### Verificación Final ✅
+
+| Gate | Estado | Resultado |
+|------|--------|-----------|
+| `python3.12 -m pytest tests/` | ✅ | 492 passed |
+| `intake --version` | ✅ | 0.2.0 |
+| `intake plugins list` | ✅ | 13 plugins (11 parsers + 2 exporters) |
+| `intake plugins check` | ✅ | All 13 compatible |
+| Entry point discovery | ✅ | Todos los parsers y exporters descubiertos |
+
+### Decisiones Técnicas Phase 1
+
+15. **V1 parsers no migrados a V2**: Los 8 parsers existentes mantienen el protocolo V1 (can_parse + parse). El protocolo V2 (ParserPlugin) es un superset. Los registries detectan y manejan ambos. Evita reescribir 8 parsers + tests sin beneficio al usuario.
+
+16. **AdaptiveSpecBuilder wraps SpecBuilder**: No reemplaza. Composición sobre herencia. Independientemente testeable.
+
+17. **Connectors solo infraestructura en Phase 1**: ConnectorRegistry + ConnectorPlugin protocol existen, pero no hay connectors concretos. Los scheme URIs (jira://, confluence://, github://) muestran warning "connector not available yet".
+
+18. **structlog `event` keyword reservado**: `logger.debug("hook_registered", event=event_name)` causa `TypeError` porque `event` es keyword reservado del bound logger de structlog. Fix: usar `event_name=` en su lugar.
+
+19. **Plugin discovery graceful fallback**: Si `importlib.metadata.entry_points()` falla o no encuentra plugins (e.g., running from source sin `pip install`), el fallback automático a registro manual garantiza que todo sigue funcionando.
+
+20. **JSON subtype detection ordering**: Jira (más específico: "issues" key o "key"+"fields") > GitHub Issues ("number"+"html_url") > Slack (type:"message"+"ts") > genérico YAML. El orden importa para evitar falsos positivos.
+
+---
+
+## QA Audit — Phase 1 (v0.2.0) ✅
+
+> Ejecutada: 2026-03-03
+> Resultado: **APROBADA PARA RELEASE**
+
+### Resumen
+
+| Métrica | Resultado |
+|---------|-----------|
+| Tests | **492 passed**, 0 failed, 0 errors |
+| Coverage | **86%** global (target: 65%) |
+| mypy --strict | **0 errors** (64 source files) |
+| ruff check | **0 warnings** |
+| ruff format | **0 issues** (119 archivos formateados) |
+| CLI commands | Todos funcionando (`--version`, `plugins list`, `plugins check`) |
+| Entry points | 13 plugins descubiertos (11 parsers + 2 exporters) |
+| Seguridad | Sin credenciales ni datos sensibles en logs |
+
+### Issues Encontrados y Corregidos (105 total)
+
+| # | Categoría | Cantidad | Detalle |
+|---|-----------|----------|---------|
+| 1 | ruff (TC001) | 8 | Imports de aplicación movidos a bloques `TYPE_CHECKING` |
+| 2 | ruff (RUF002) | 2 | EN DASH ambiguo (`–`) reemplazado por HYPHEN-MINUS (`-`) |
+| 3 | ruff (N817) | 2 | `PluginRegistry as PR` renombrado a `PluginRegistry as PluginReg` |
+| 4 | ruff (E501) | 4 | Líneas largas divididas en multilínea |
+| 5 | ruff (F841) | 2 | Variables no usadas eliminadas |
+| 6 | ruff (TC003) | 2 | `Path` movido a bloques `TYPE_CHECKING` en tests |
+| 7 | ruff (F401/I001) | 30 | Imports no usados + ordenamiento (auto-fix) |
+| 8 | ruff format | 54 | Formateo inconsistente (auto-fix) |
+| 9 | mypy | 1 | `Returning Any` en `github_issues.py` → wrapped con `str()` |
+| 10 | mypy | 1 | `type: ignore` innecesario en `discovery.py` → eliminado |
+| 11 | mypy | 2 | `list[object]` vs `list[ParsedContent]` en `cli.py` → tipos corregidos |
+
+### Coverage por Módulo
+
+| Módulo | Coverage | Target | Estado |
+|--------|----------|--------|--------|
+| `ingest/` | 81-96%* | >80% | ✅ PASS |
+| `verify/` | 88-95% | >80% | ✅ PASS |
+| `config/` | 88-100% | >80% | ✅ PASS |
+| `diff/` | 95% | >70% | ✅ PASS |
+| `doctor/` | 83% | >70% | ✅ PASS |
+| `analyze/` | 83-100% | >60% | ✅ PASS |
+| `generate/` | 87-100% | >60% | ✅ PASS |
+| `export/` | 93-100% | >60% | ✅ PASS |
+| `plugins/` | 86-100% | — | ✅ PASS |
+| `connectors/` | 100% | — | ✅ PASS |
+| `utils/` | 93-100% | — | ✅ PASS |
+
+> *`ingest/docx.py` (14%) e `ingest/pdf.py` (15%) requieren fixtures binarios reales. No es regresión de Phase 1.
+
+### Distribución de Tests (492 total)
+
+| Área | Tests |
+|------|-------|
+| CLI | 33 |
+| Config | 21 |
+| Ingest (parsers + registry) | 156 |
+| Analyze | 77 |
+| Generate | 37 |
+| Export | 25 |
+| Verify | 26 |
+| Diff | 12 |
+| Doctor | 17 |
+| Plugins | 34 |
+| Connectors | 11 |
+| Utils | 43 |
+
+### Phase Sign-off
+
+- [x] All tests pass (492/492)
+- [x] Coverage targets met (86% overall)
+- [x] mypy strict: zero errors (64 files)
+- [x] ruff check: zero warnings
+- [x] ruff format: zero issues
+- [x] No regression in v0.1.0 tests
+- [x] All new Phase 1 features covered by tests
+- [x] CLI commands functional
+- [x] No security issues found
+- [x] Documentation updated
+
+### Recomendaciones para Siguiente Fase
+
+1. **Coverage docx/pdf**: Agregar fixtures binarios reales con tests dedicados
+2. **Integration test end-to-end**: `init` con fuentes reales (requiere LLM mock completo)
+3. **V2 protocol adoption**: Migrar parsers V1 existentes a V2 para confidence scoring

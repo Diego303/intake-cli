@@ -50,6 +50,7 @@ spec:
   version_specs: true             # Crear directorios versionados
   generate_lock: true             # Generar spec.lock.yaml
   risk_assessment: true           # Incluir evaluacion de riesgos
+  auto_mode: true                 # Auto-detectar quick/standard/enterprise
 
 # Configuracion de verificacion
 verification:
@@ -64,6 +65,19 @@ export:
   architect_include_guardrails: true
   architect_pipeline_template: standard
   claude_code_generate_claude_md: true
+
+# Conectores (preparacion para Fase 2)
+connectors:
+  jira:
+    url: ""                       # URL base de Jira
+    email: ""                     # Email de autenticacion
+    api_token_env: JIRA_API_TOKEN # Variable de entorno con el API token
+  confluence:
+    url: ""                       # URL base de Confluence
+    email: ""                     # Email de autenticacion
+    api_token_env: CONFLUENCE_API_TOKEN  # Variable de entorno con el API token
+  github:
+    token_env: GITHUB_TOKEN       # Variable de entorno con el token
 
 # Seguridad
 security:
@@ -135,6 +149,15 @@ Ademas inspecciona el contenido de `pyproject.toml` y `package.json` para detect
 | `version_specs` | bool | `true` | Crear subdirectorios versionados para las specs. |
 | `generate_lock` | bool | `true` | Generar `spec.lock.yaml` con hashes y metadata. |
 | `risk_assessment` | bool | `true` | Ejecutar evaluacion de riesgos (fase adicional del LLM). |
+| `auto_mode` | bool | `true` | Auto-detectar modo de generacion (quick/standard/enterprise) basado en la complejidad de las fuentes. Se ignora si se usa `--mode` en la CLI. |
+
+**Modos de generacion:**
+
+| Modo | Criterios de auto-deteccion | Archivos generados |
+|------|---------------------------|-------------------|
+| `quick` | <500 palabras, 1 fuente, sin estructura | `context.md` + `tasks.md` |
+| `standard` | Todo lo que no es quick ni enterprise | Los 6 archivos spec completos |
+| `enterprise` | 4+ fuentes O >5000 palabras | Los 6 archivos + riesgos detallados |
 
 **Formatos de requisitos:**
 
@@ -178,6 +201,22 @@ Ademas inspecciona el contenido de `pyproject.toml` y `package.json` para detect
 | `architect_include_guardrails` | bool | `true` | Incluir guardrails en pipelines de architect. |
 | `architect_pipeline_template` | string | `standard` | Template de pipeline para architect. |
 | `claude_code_generate_claude_md` | bool | `true` | Generar CLAUDE.md al exportar para Claude Code. |
+
+### Seccion `connectors` (preparacion)
+
+Configuracion para conectores API directos. Los conectores aun no estan implementados (llegaran en una version futura), pero la infraestructura de configuracion ya esta lista.
+
+| Campo | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `jira.url` | string | `""` | URL base de la instancia Jira. |
+| `jira.email` | string | `""` | Email para autenticacion Jira. |
+| `jira.api_token_env` | string | `"JIRA_API_TOKEN"` | Variable de entorno con el API token de Jira. |
+| `confluence.url` | string | `""` | URL base de la instancia Confluence. |
+| `confluence.email` | string | `""` | Email para autenticacion Confluence. |
+| `confluence.api_token_env` | string | `"CONFLUENCE_API_TOKEN"` | Variable de entorno con el API token de Confluence. |
+| `github.token_env` | string | `"GITHUB_TOKEN"` | Variable de entorno con el token de GitHub. |
+
+**Nota:** Actualmente, al usar URIs como `jira://PROJ-123` en `-s`, intake muestra un warning indicando que el conector no esta disponible. Mientras tanto, exporta los datos desde la interfaz web y usa archivos JSON.
 
 ### Seccion `security`
 

@@ -41,9 +41,7 @@ class TestMarkdownParser:
         assert result.metadata.get("title") == "OAuth2 Authentication"
         assert result.metadata.get("author") == "PM Team"
 
-    def test_parse_extracts_sections(
-        self, parser: MarkdownParser, markdown_fixture: Path
-    ) -> None:
+    def test_parse_extracts_sections(self, parser: MarkdownParser, markdown_fixture: Path) -> None:
         result = parser.parse(str(markdown_fixture))
         assert result.has_structure is True
         titles = [s["title"] for s in result.sections]

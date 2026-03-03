@@ -100,6 +100,7 @@ class VerificationEngine:
         total_count = len(checks)
 
         if tags:
+
             def _has_matching_tag(c: dict[str, object]) -> bool:
                 check_tags = c.get("tags", [])
                 if not isinstance(check_tags, list):
@@ -223,9 +224,7 @@ class VerificationEngine:
                 paths = check.get("paths", [])
                 if not isinstance(paths, list):
                     paths = [str(paths)]
-                passed, output = self._check_files_exist(
-                    [str(p) for p in paths]
-                )
+                passed, output = self._check_files_exist([str(p) for p in paths])
             elif check_type == "pattern_present":
                 raw_pats = check.get("patterns", [])
                 pat_list = [str(p) for p in raw_pats] if isinstance(raw_pats, list) else []

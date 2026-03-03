@@ -40,9 +40,7 @@ class YamlInputParser:
         """Check if this source is a YAML or JSON file."""
         path = Path(source)
         return (
-            path.exists()
-            and path.is_file()
-            and path.suffix.lower() in {".yaml", ".yml", ".json"}
+            path.exists() and path.is_file() and path.suffix.lower() in {".yaml", ".yml", ".json"}
         )
 
     def parse(self, source: str) -> ParsedContent:
@@ -124,10 +122,12 @@ class YamlInputParser:
                 allow_unicode=True,
                 sort_keys=False,
             )
-            sections.append({
-                "title": str(key),
-                "content": content.strip(),
-            })
+            sections.append(
+                {
+                    "title": str(key),
+                    "content": content.strip(),
+                }
+            )
         return sections
 
     def _extract_metadata(self, data: object, path: Path) -> dict[str, str]:

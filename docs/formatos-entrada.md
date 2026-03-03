@@ -1,13 +1,13 @@
 # Formatos de entrada
 
-intake soporta 8 formatos de entrada a traves de parsers especializados. El formato se auto-detecta por extension de archivo y contenido.
+intake soporta 11 formatos de entrada a traves de parsers especializados. El formato se auto-detecta por extension de archivo y contenido. Los parsers se descubren automaticamente via el [sistema de plugins](plugins.md).
 
 ---
 
 ## Tabla resumen
 
-| Formato | Parser | Extensiones | Dependencia | Que extrae |
-|---------|--------|-------------|-------------|-----------|
+| Formato | Parser | Extensiones / Fuente | Dependencia | Que extrae |
+|---------|--------|---------------------|-------------|-----------|
 | Markdown | `MarkdownParser` | `.md`, `.markdown` | — | Front matter YAML, secciones por headings |
 | Texto plano | `PlaintextParser` | `.txt`, stdin (`-`) | — | Parrafos como secciones |
 | YAML / JSON | `YamlInputParser` | `.yaml`, `.yml`, `.json` | — | Claves top-level como secciones |
@@ -16,6 +16,9 @@ intake soporta 8 formatos de entrada a traves de parsers especializados. El form
 | Jira | `JiraParser` | `.json` (auto-detectado) | — | Issues, comments, links, labels, prioridad |
 | Confluence | `ConfluenceParser` | `.html`, `.htm` (auto-detectado) | bs4, markdownify | Contenido limpio como Markdown |
 | Imagenes | `ImageParser` | `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif` | LLM vision | Descripcion del contenido visual |
+| URLs | `UrlParser` | `http://`, `https://` | httpx, bs4, markdownify | Contenido de paginas web como Markdown |
+| Slack | `SlackParser` | `.json` (auto-detectado) | — | Mensajes, threads, decisiones, action items |
+| GitHub Issues | `GithubIssuesParser` | `.json` (auto-detectado) | — | Issues, labels, comments, cross-references |
 
 ---
 
@@ -25,13 +28,18 @@ El registry detecta el formato automaticamente siguiendo este orden:
 
 1. **Stdin** (`-`): siempre se trata como `plaintext`
 2. **Extension del archivo**: mapeo directo (`.md` -> markdown, `.pdf` -> pdf, etc.)
-3. **Subtipo JSON**: si la extension es `.json`:
+3. **Subtipo JSON**: si la extension es `.json`, se inspecciona el contenido en este orden:
    - Si tiene key `"issues"` o es una lista con objetos que tienen `"key"` + `"fields"` -> `jira`
-   - Si no -> `yaml` (se trata como datos estructurados)
+   - Si es una lista con objetos que tienen `"number"` + (`"html_url"` o `"labels"`) -> `github_issues`
+   - Si es una lista con objetos que tienen `"type": "message"` + `"ts"` -> `slack`
+   - Si no matchea ningun subtipo -> `yaml` (se trata como datos estructurados)
 4. **Subtipo HTML**: si la extension es `.html` o `.htm`:
    - Si los primeros 2000 caracteres contienen "confluence" o "atlassian" -> `confluence`
    - Si no -> fallback a `plaintext`
-5. **Fallback**: si no hay parser para el formato detectado -> `plaintext`
+5. **URLs**: si la fuente empieza con `http://` o `https://` -> `url`
+6. **Fallback**: si no hay parser para el formato detectado -> `plaintext`
+
+**Nota:** La deteccion de subtipos JSON sigue un orden de prioridad estricto: Jira > GitHub Issues > Slack > YAML generico. Esto evita ambiguedades cuando un JSON tiene campos que podrian matchear multiples formatos.
 
 ---
 
@@ -271,6 +279,127 @@ Soporta dos formatos de exportacion de Jira:
 
 ---
 
+### URLs
+
+**Fuente:** URLs que empiezan con `http://` o `https://`
+**Requiere:** `httpx`, `beautifulsoup4`, `markdownify`
+
+**Que hace:**
+
+1. Descarga la pagina via `httpx` (sync, timeout configurable)
+2. Convierte HTML a Markdown limpio via BeautifulSoup4 + markdownify
+3. Extrae titulo de la pagina, secciones por headings
+4. Auto-detecta tipo de fuente por patrones en la URL
+
+**Auto-deteccion de tipo:**
+
+| Patron en URL | Tipo detectado |
+|---------------|---------------|
+| `confluence`, `wiki` | confluence |
+| `jira`, `atlassian` | jira |
+| `github.com` | github |
+| Otros | webpage |
+
+**Metadata extraida:** `url`, `title`, `source_type`, `section_count`
+
+**Manejo de errores:**
+
+- Timeout → `ParseError` con sugerencia de verificar la URL
+- HTTP 4xx/5xx → `ParseError` con el codigo de estado
+- Error de conexion → `ParseError` con sugerencia de verificar la red
+
+**Ejemplo:**
+
+```bash
+intake init "API review" -s https://wiki.company.com/rfc/auth
+```
+
+---
+
+### Slack
+
+**Extensiones:** `.json` (auto-detectado por estructura)
+
+**Deteccion:** El archivo JSON debe ser una lista de objetos con `"type": "message"` y campo `"ts"` (timestamp de Slack).
+
+**Que extrae:**
+
+- **Mensajes**: texto de cada mensaje con usuario y timestamp
+- **Threads**: mensajes agrupados por `thread_ts`
+- **Decisiones**: mensajes con reacciones especificas (thumbsup, white_check_mark) o keywords como "decidido", "agreed"
+- **Action items**: mensajes con keywords como "TODO", "action item", "necesitamos"
+
+**Metadata:**
+
+| Campo | Descripcion |
+|-------|-------------|
+| `message_count` | Total de mensajes |
+| `thread_count` | Cantidad de threads |
+| `decision_count` | Decisiones detectadas |
+| `action_item_count` | Action items detectados |
+
+**Ejemplo de fuente:**
+
+```json
+[
+  {"type": "message", "user": "U123", "text": "Necesitamos usar PostgreSQL", "ts": "1700000000.000"},
+  {"type": "message", "user": "U456", "text": "De acuerdo", "ts": "1700000001.000",
+   "reactions": [{"name": "thumbsup", "count": 3}]},
+  {"type": "message", "user": "U789", "text": "TODO: configurar la base de datos", "ts": "1700000002.000",
+   "thread_ts": "1700000000.000"}
+]
+```
+
+---
+
+### GitHub Issues
+
+**Extensiones:** `.json` (auto-detectado por estructura)
+
+**Deteccion:** El archivo JSON debe contener objetos con campo `"number"` y al menos `"html_url"`, `"title"` + `"labels"`, o `"title"` + `"body"`. Soporta tanto un solo issue como una lista.
+
+**Que extrae:**
+
+- **Issues**: numero, titulo, cuerpo, estado (open/closed)
+- **Labels**: etiquetas del issue
+- **Assignees**: usuarios asignados
+- **Milestones**: hito asociado
+- **Comments**: comentarios del issue
+- **Cross-references**: detecta `#NNN` en el texto como referencias a otros issues
+
+**Formatos soportados:**
+
+```json
+// Formato lista (multiples issues)
+[
+  {
+    "number": 1,
+    "title": "Bug en login",
+    "body": "El login falla cuando...",
+    "html_url": "https://github.com/org/repo/issues/1",
+    "state": "open",
+    "labels": [{"name": "bug"}, {"name": "priority:high"}],
+    "comments": [
+      {"body": "Reproducido en produccion", "user": {"login": "dev1"}}
+    ]
+  }
+]
+
+// Formato individual (un solo issue)
+{
+  "number": 42,
+  "title": "Feature request",
+  "body": "Necesitamos...",
+  "html_url": "https://github.com/org/repo/issues/42"
+}
+```
+
+**Metadata:** `source_type` ("github_issues"), `issue_count`, `labels` (lista separada por comas), `milestone` (si existe)
+
+**Relaciones extraidas:** cross-references via `#NNN` en body y comments.
+
+---
+
 ## Limitaciones generales
 
 | Limite | Valor | Descripcion |
@@ -284,10 +413,20 @@ Soporta dos formatos de exportacion de Jira:
 
 ## Agregar soporte para mas formatos
 
-intake usa el patron `Protocol` para parsers. Para agregar un nuevo parser:
+Hay dos formas de agregar un nuevo parser:
+
+### Opcion 1: Parser built-in (V1 Protocol)
 
 1. Crear un archivo en `src/intake/ingest/` (ej: `asana.py`)
 2. Implementar los metodos `can_parse(source: str) -> bool` y `parse(source: str) -> ParsedContent`
-3. Registrarlo en `registry.py` dentro de `create_default_registry()`
+3. Registrarlo en `create_default_registry()` y como entry_point en `pyproject.toml`
 
-No es necesario heredar de ninguna clase base — solo implementar la interfaz correcta.
+### Opcion 2: Plugin externo (V2 ParserPlugin)
+
+1. Crear un paquete Python separado
+2. Implementar el protocolo `ParserPlugin` de `intake.plugins.protocols`
+3. Registrar como entry_point en el grupo `intake.parsers` en tu `pyproject.toml`
+
+El parser sera descubierto automaticamente al instalar el paquete. Ver [Plugins](plugins.md) para detalles.
+
+No es necesario heredar de ninguna clase base — solo implementar la interfaz correcta (subtipado estructural via `typing.Protocol`).

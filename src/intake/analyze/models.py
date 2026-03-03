@@ -79,6 +79,7 @@ class TaskItem:
     dependencies: list[int]
     checks: list[str]
     estimated_minutes: int = 15
+    status: str = "pending"
 
 
 @dataclass

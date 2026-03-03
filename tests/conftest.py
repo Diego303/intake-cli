@@ -104,6 +104,24 @@ def image_fixture(fixtures_dir: Path) -> Path:
 
 
 @pytest.fixture
+def slack_export_fixture(fixtures_dir: Path) -> Path:
+    """Path to the Slack export JSON fixture."""
+    return fixtures_dir / "slack_export.json"
+
+
+@pytest.fixture
+def github_issues_fixture(fixtures_dir: Path) -> Path:
+    """Path to the GitHub Issues JSON fixture."""
+    return fixtures_dir / "github_issues.json"
+
+
+@pytest.fixture
+def sample_webpage_fixture(fixtures_dir: Path) -> Path:
+    """Path to the sample HTML webpage fixture."""
+    return fixtures_dir / "sample_webpage.html"
+
+
+@pytest.fixture
 def tmp_yaml_config(tmp_path: Path) -> Path:
     """Create a temporary .intake.yaml for config tests."""
     config_content = """\

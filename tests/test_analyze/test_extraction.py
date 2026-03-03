@@ -27,8 +27,7 @@ def _sample_extraction_json() -> dict:
                 "id": "FR-02",
                 "title": "Password reset",
                 "description": (
-                    "When a user requests a password reset, "
-                    "the system shall send an email."
+                    "When a user requests a password reset, the system shall send an email."
                 ),
                 "acceptance_criteria": ["AC-02.1: Email sent within 30 seconds"],
                 "source": "Source 1",

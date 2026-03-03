@@ -1,0 +1,82 @@
+[
+  {
+    "number": 15,
+    "title": "Add pagination to user list endpoint",
+    "body": "The `/api/users` endpoint currently returns all users in a single response. This causes performance issues when there are more than 1000 users.\n\n## Expected Behavior\nThe endpoint should support cursor-based pagination with a configurable page size (default 50, max 200).\n\n## Additional Context\nThis is related to #42 which tracks the overall API performance improvements.\nAlso see #10 for the database indexing work that needs to happen first.",
+    "state": "open",
+    "labels": [
+      {"name": "enhancement", "color": "a2eeef"},
+      {"name": "api", "color": "d4c5f9"}
+    ],
+    "assignees": [
+      {"login": "alice-dev", "id": 12345}
+    ],
+    "milestone": {
+      "title": "v2.0 Release",
+      "due_on": "2024-03-15T00:00:00Z",
+      "state": "open"
+    },
+    "html_url": "https://github.com/example/project/issues/15",
+    "created_at": "2024-01-20T10:00:00Z",
+    "updated_at": "2024-01-25T14:30:00Z",
+    "comments": 2,
+    "comments_data": [
+      {
+        "user": {"login": "bob-reviewer"},
+        "body": "We should use cursor-based pagination instead of offset-based to avoid the N+1 problem with large datasets.",
+        "created_at": "2024-01-21T09:00:00Z"
+      },
+      {
+        "user": {"login": "alice-dev"},
+        "body": "Agreed. I'll implement cursor-based pagination using the `id` column as the cursor. Will also add `Link` headers for discoverability.",
+        "created_at": "2024-01-22T11:30:00Z"
+      }
+    ]
+  },
+  {
+    "number": 22,
+    "title": "Fix race condition in payment processing",
+    "body": "When two payment requests arrive simultaneously for the same order, both can be processed, leading to double charges.\n\n## Steps to Reproduce\n1. Create an order\n2. Send two POST /payments requests at the same time\n3. Both succeed instead of one failing\n\n## Root Cause\nThe payment handler does not use optimistic locking on the order record.",
+    "state": "open",
+    "labels": [
+      {"name": "bug", "color": "d73a4a"},
+      {"name": "critical", "color": "b60205"}
+    ],
+    "assignees": [
+      {"login": "carol-backend", "id": 67890}
+    ],
+    "milestone": {
+      "title": "v2.0 Release",
+      "due_on": "2024-03-15T00:00:00Z",
+      "state": "open"
+    },
+    "html_url": "https://github.com/example/project/issues/22",
+    "created_at": "2024-01-25T08:00:00Z",
+    "updated_at": "2024-01-26T16:00:00Z",
+    "comments": 1,
+    "comments_data": [
+      {
+        "user": {"login": "dave-dba"},
+        "body": "We need to add a unique constraint on (order_id, status) and use SELECT FOR UPDATE in the transaction. This is a critical fix for production.",
+        "created_at": "2024-01-25T10:00:00Z"
+      }
+    ]
+  },
+  {
+    "number": 28,
+    "title": "Add OpenAPI spec generation",
+    "body": "We should auto-generate OpenAPI 3.0 specs from our route definitions to keep documentation in sync with the code.\n\nThis depends on #15 being completed first since the pagination parameters need to be documented.",
+    "state": "open",
+    "labels": [
+      {"name": "enhancement", "color": "a2eeef"},
+      {"name": "documentation", "color": "0075ca"}
+    ],
+    "assignees": [],
+    "milestone": null,
+    "html_url": "https://github.com/example/project/issues/28",
+    "created_at": "2024-02-01T12:00:00Z",
+    "updated_at": "2024-02-01T12:00:00Z",
+    "comments": 0,
+    "comments_data": []
+  }
+]

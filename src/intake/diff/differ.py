@@ -114,7 +114,9 @@ class SpecDiffer:
         result = SpecDiff(spec_a=spec_a_dir, spec_b=spec_b_dir)
 
         target_sections = sections or [
-            "requirements", "tasks", "acceptance",
+            "requirements",
+            "tasks",
+            "acceptance",
         ]
 
         if "requirements" in target_sections:
@@ -174,50 +176,54 @@ class SpecDiffer:
         Returns:
             List of DiffEntry for added/removed/modified items.
         """
-        items_a = (
-            self._extract_sections(file_a, id_pattern) if file_a.exists() else {}
-        )
-        items_b = (
-            self._extract_sections(file_b, id_pattern) if file_b.exists() else {}
-        )
+        items_a = self._extract_sections(file_a, id_pattern) if file_a.exists() else {}
+        items_b = self._extract_sections(file_b, id_pattern) if file_b.exists() else {}
 
         changes: list[DiffEntry] = []
 
         # Check for added and modified items
         for item_id in items_b:
             if item_id not in items_a:
-                changes.append(DiffEntry(
-                    section=section,
-                    change_type="added",
-                    item_id=item_id,
-                    new_value=items_b[item_id],
-                    summary=f"Added {item_id}",
-                ))
+                changes.append(
+                    DiffEntry(
+                        section=section,
+                        change_type="added",
+                        item_id=item_id,
+                        new_value=items_b[item_id],
+                        summary=f"Added {item_id}",
+                    )
+                )
             elif items_a[item_id] != items_b[item_id]:
-                changes.append(DiffEntry(
-                    section=section,
-                    change_type="modified",
-                    item_id=item_id,
-                    old_value=items_a[item_id],
-                    new_value=items_b[item_id],
-                    summary=f"Modified {item_id}",
-                ))
+                changes.append(
+                    DiffEntry(
+                        section=section,
+                        change_type="modified",
+                        item_id=item_id,
+                        old_value=items_a[item_id],
+                        new_value=items_b[item_id],
+                        summary=f"Modified {item_id}",
+                    )
+                )
 
         # Check for removed items
         for item_id in items_a:
             if item_id not in items_b:
-                changes.append(DiffEntry(
-                    section=section,
-                    change_type="removed",
-                    item_id=item_id,
-                    old_value=items_a[item_id],
-                    summary=f"Removed {item_id}",
-                ))
+                changes.append(
+                    DiffEntry(
+                        section=section,
+                        change_type="removed",
+                        item_id=item_id,
+                        old_value=items_a[item_id],
+                        summary=f"Removed {item_id}",
+                    )
+                )
 
         return changes
 
     def _diff_acceptance(
-        self, file_a: Path, file_b: Path,
+        self,
+        file_a: Path,
+        file_b: Path,
     ) -> list[DiffEntry]:
         """Compare two acceptance.yaml files by check ID.
 
@@ -235,26 +241,32 @@ class SpecDiffer:
 
         for check_id in checks_b:
             if check_id not in checks_a:
-                changes.append(DiffEntry(
-                    section="acceptance",
-                    change_type="added",
-                    item_id=check_id,
-                    summary=f"Added check: {check_id}",
-                ))
+                changes.append(
+                    DiffEntry(
+                        section="acceptance",
+                        change_type="added",
+                        item_id=check_id,
+                        summary=f"Added check: {check_id}",
+                    )
+                )
 
         for check_id in checks_a:
             if check_id not in checks_b:
-                changes.append(DiffEntry(
-                    section="acceptance",
-                    change_type="removed",
-                    item_id=check_id,
-                    summary=f"Removed check: {check_id}",
-                ))
+                changes.append(
+                    DiffEntry(
+                        section="acceptance",
+                        change_type="removed",
+                        item_id=check_id,
+                        summary=f"Removed check: {check_id}",
+                    )
+                )
 
         return changes
 
     def _extract_sections(
-        self, path: Path, id_pattern: str,
+        self,
+        path: Path,
+        id_pattern: str,
     ) -> dict[str, str]:
         """Extract sections from markdown keyed by matched ID.
 
@@ -307,8 +319,4 @@ class SpecDiffer:
         if not isinstance(checks, list):
             return {}
 
-        return {
-            str(c["id"]): c
-            for c in checks
-            if isinstance(c, dict) and "id" in c
-        }
+        return {str(c["id"]): c for c in checks if isinstance(c, dict) and "id" in c}

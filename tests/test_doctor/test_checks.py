@@ -31,8 +31,9 @@ class TestDoctorChecks:
 
     def test_api_key_fails_when_unset(self) -> None:
         checks = DoctorChecks()
-        env = {k: v for k, v in os.environ.items()
-               if k not in {"ANTHROPIC_API_KEY", "OPENAI_API_KEY"}}
+        env = {
+            k: v for k, v in os.environ.items() if k not in {"ANTHROPIC_API_KEY", "OPENAI_API_KEY"}
+        }
         with patch.dict(os.environ, env, clear=True):
             result = checks._check_api_key()
         assert result.passed is False

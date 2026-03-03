@@ -3,38 +3,47 @@
 intake procesa requisitos a traves de un pipeline de 5 fases. Cada fase transforma los datos y los pasa a la siguiente.
 
 ```
-Fuentes        Fase 1        Fase 2        Fase 3         Fase 4          Fase 5
-(archivos) --> INGEST -----> ANALYZE ----> GENERATE ----> VERIFY -------> EXPORT
-               (parsers)     (LLM)        (templates)    (checks)        (output)
-                  |             |              |              |               |
-            ParsedContent  AnalysisResult  Spec files   VerifyReport   Agent output
+Fuentes             Fase 1        Fase 2        Fase 3         Fase 4          Fase 5
+(archivos/URLs) --> INGEST -----> ANALYZE ----> GENERATE ----> VERIFY -------> EXPORT
+                    (parsers)     (LLM)        (templates)    (checks)        (output)
+                       |             |              |              |               |
+                 ParsedContent  AnalysisResult  Spec files   VerifyReport   Agent output
+                                     |              |
+                              Complexity      Adaptive
+                             Assessment      Generation
 ```
 
 ---
 
 ## Fase 1: Ingest
 
-**Modulo:** `ingest/`
+**Modulo:** `ingest/` (11 parsers)
 **Requiere LLM:** No (excepto `ImageParser`)
 
 ### Que hace
 
-Toma archivos de requisitos en cualquier formato y los convierte en una estructura normalizada (`ParsedContent`).
+Toma archivos de requisitos en cualquier formato y los convierte en una estructura normalizada (`ParsedContent`). Soporta archivos locales, URLs, y stdin.
 
 ### Flujo
 
 ```
-Archivo --> Registry --> Detecta formato --> Selecciona parser --> ParsedContent
+Fuente --> parse_source() --> Registry --> Detecta formato --> Selecciona parser --> ParsedContent
 ```
 
-1. El **Registry** recibe la ruta del archivo
-2. **Auto-detecta el formato** por extension y contenido:
+1. **Resolucion de fuente**: `parse_source()` determina el tipo de fuente:
+   - Archivos locales → pasan al registry
+   - URLs HTTP/HTTPS → se procesan con `UrlParser`
+   - URIs de esquema (`jira://`, `confluence://`, `github://`) → reservados para conectores futuros
+   - Stdin (`-`) → se lee como plaintext
+   - Texto libre → se trata como plaintext
+2. El **Registry** recibe la ruta del archivo
+3. **Auto-detecta el formato** por extension y contenido:
    - Extension directa: `.md` -> markdown, `.pdf` -> pdf, `.docx` -> docx
-   - Subtipos JSON: si tiene key `"issues"` -> jira, si no -> yaml
+   - Subtipos JSON: Jira > GitHub Issues > Slack > YAML generico
    - Subtipos HTML: si contiene "confluence" o "atlassian" -> confluence
    - Fallback: plaintext
-3. **Selecciona el parser** registrado para ese formato
-4. El parser produce un **`ParsedContent`** normalizado
+4. **Selecciona el parser** registrado para ese formato (via plugin discovery o registro manual)
+5. El parser produce un **`ParsedContent`** normalizado
 
 ### ParsedContent
 
@@ -163,6 +172,29 @@ El `LLMAdapter` rastrea el costo de cada llamada:
 
 ---
 
+## Fase 2.5: Clasificacion de complejidad
+
+**Modulo:** `analyze/complexity.py`
+**Requiere LLM:** No
+
+### Que hace
+
+Antes de generar, se clasifica la complejidad de las fuentes para seleccionar el modo de generacion optimo. Esta clasificacion es heuristica (no usa LLM).
+
+### Criterios
+
+| Modo | Condiciones | Confianza |
+|------|------------|-----------|
+| `quick` | <500 palabras AND 1 fuente AND sin contenido estructurado | Alta |
+| `enterprise` | 4+ fuentes O >5000 palabras | Alta |
+| `standard` | Todo lo que no es quick ni enterprise | Media |
+
+**Contenido estructurado** incluye formatos como `jira`, `confluence`, `yaml`, `github_issues`, `slack`.
+
+La clasificacion se puede sobreescribir con `--mode` en la CLI.
+
+---
+
 ## Fase 3: Generate
 
 **Modulo:** `generate/`
@@ -170,7 +202,17 @@ El `LLMAdapter` rastrea el costo de cada llamada:
 
 ### Que hace
 
-Toma el `AnalysisResult` y renderiza 6 archivos Markdown/YAML usando templates Jinja2, mas un `spec.lock.yaml` para reproducibilidad.
+Toma el `AnalysisResult` y renderiza archivos Markdown/YAML usando templates Jinja2, mas un `spec.lock.yaml` para reproducibilidad. La cantidad de archivos generados depende del modo.
+
+### Generacion adaptativa
+
+El `AdaptiveSpecBuilder` envuelve al `SpecBuilder` estandar y filtra los archivos segun el modo:
+
+| Modo | Archivos generados |
+|------|-------------------|
+| `quick` | `context.md`, `tasks.md` |
+| `standard` | Los 6 archivos completos |
+| `enterprise` | Los 6 archivos + riesgos detallados |
 
 ### Templates
 
@@ -256,27 +298,34 @@ Ver [Exportacion](exportacion.md) para detalles completos.
 ## Flujo de datos completo
 
 ```
-.md / .json / .pdf / .docx / .html / .yaml / .txt / .png
+.md / .json / .pdf / .docx / .html / .yaml / .txt / .png / URLs
+                           |
+                   [ SOURCE RESOLUTION ]
+                   (parse_source → file, url, stdin, text)
                            |
                       [ INGEST ]
+                      (11 parsers via plugin discovery)
                            |
                    list[ParsedContent]
+                           |
+                  [ COMPLEXITY CLASSIFICATION ]
+                  (quick / standard / enterprise)
                            |
                       [ ANALYZE ]
                       (3 LLM calls)
                            |
                      AnalysisResult
                            |
-                      [ GENERATE ]
-                      (6 templates)
+                  [ ADAPTIVE GENERATE ]
+                  (2-6 templates segun modo)
                            |
               specs/mi-feature/
-              ├── requirements.md
-              ├── design.md
-              ├── tasks.md
-              ├── acceptance.yaml
-              ├── context.md
-              ├── sources.md
+              ├── requirements.md    (standard, enterprise)
+              ├── design.md          (standard, enterprise)
+              ├── tasks.md           (siempre)
+              ├── acceptance.yaml    (standard, enterprise)
+              ├── context.md         (siempre)
+              ├── sources.md         (standard, enterprise)
               └── spec.lock.yaml
                            |
                       [ VERIFY ]         [ EXPORT ]

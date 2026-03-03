@@ -177,9 +177,7 @@ class SpecBuilder:
             "duplicates_removed": result.duplicates_removed,
         }
 
-    def _render_template(
-        self, template_name: str, context: dict[str, object]
-    ) -> str:
+    def _render_template(self, template_name: str, context: dict[str, object]) -> str:
         """Render a single Jinja2 template with the given context.
 
         Args:

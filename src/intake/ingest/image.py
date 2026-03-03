@@ -67,9 +67,7 @@ class ImageParser:
         """Check if this source is a supported image file."""
         path = Path(source)
         return (
-            path.exists()
-            and path.is_file()
-            and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
+            path.exists() and path.is_file() and path.suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
         )
 
     def parse(self, source: str) -> ParsedContent:
