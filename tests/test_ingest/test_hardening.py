@@ -47,15 +47,21 @@ class TestValidateFileReadable:
         large.write_text("x")
         with pytest.raises(FileTooLargeError, match="exceeds"):
             import unittest.mock
+
             original_stat = large.stat()
             fake_stat = original_stat.__class__(
-                (original_stat.st_mode, original_stat.st_ino,
-                 original_stat.st_dev, original_stat.st_nlink,
-                 original_stat.st_uid, original_stat.st_gid,
-                 MAX_FILE_SIZE_BYTES + 1,  # st_size
-                 int(original_stat.st_atime),
-                 int(original_stat.st_mtime),
-                 int(original_stat.st_ctime))
+                (
+                    original_stat.st_mode,
+                    original_stat.st_ino,
+                    original_stat.st_dev,
+                    original_stat.st_nlink,
+                    original_stat.st_uid,
+                    original_stat.st_gid,
+                    MAX_FILE_SIZE_BYTES + 1,  # st_size
+                    int(original_stat.st_atime),
+                    int(original_stat.st_mtime),
+                    int(original_stat.st_ctime),
+                )
             )
             with unittest.mock.patch.object(Path, "stat", return_value=fake_stat):
                 validate_file_readable(str(large))

@@ -15,3 +15,8 @@ __all__ = [
     "GenericExporter",
     "create_default_registry",
 ]
+
+# Re-export new types for v0.2.0
+from intake.plugins.protocols import ExportResult
+
+__all__ += ["ExportResult"]

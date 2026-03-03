@@ -19,16 +19,19 @@ cli.py                    <- Adaptador CLI delgado, sin logica de negocio
   |
 config/                   <- Se carga primero, se inyecta en todos los modulos
   |
-ingest/                   <- FASE 1: Parsers. Sin dependencia de LLM.
+plugins/                  <- Descubrimiento de plugins via entry_points (PEP 621)
   |
-analyze/                  <- FASE 2: Unico modulo que habla con el LLM.
+ingest/                   <- FASE 1: 11 parsers + plugin discovery. Sin dependencia de LLM.
   |
-generate/                 <- FASE 3: Templates Jinja2. Sin dependencia de LLM.
+analyze/                  <- FASE 2: Unico modulo que habla con el LLM + clasificacion de complejidad
+  |
+generate/                 <- FASE 3: Templates Jinja2 + generacion adaptativa. Sin dependencia de LLM.
   |
 verify/                   <- FASE 4: Ejecucion de subprocesos. Sin dependencia de LLM.
   |
-export/                   <- FASE 5: Generacion de archivos. Sin dependencia de LLM.
+export/                   <- FASE 5: Generacion de archivos + plugin discovery. Sin dependencia de LLM.
 
+connectors/               <- Infraestructura para conectores API (preparacion Fase 2)
 diff/                     <- Standalone: compara directorios de specs
 doctor/                   <- Standalone: checks del entorno
 llm/                      <- Compartido: SOLO usado por analyze/
@@ -49,13 +52,19 @@ La unica excepcion es `ImageParser`, que acepta un callable de vision inyectado 
 src/intake/
 ├── cli.py                  # Click CLI — adaptador delgado, sin logica
 ├── config/                 # Modelos Pydantic v2, presets, loader
-│   ├── schema.py           #   6 modelos de config (LLM, Project, Spec, Verification, Export, Security)
+│   ├── schema.py           #   7 modelos de config (LLM, Project, Spec, Verification, Export, Security, Connectors)
 │   ├── presets.py           #   minimal / standard / enterprise
 │   ├── loader.py            #   Merge por capas: defaults -> preset -> YAML -> CLI
 │   └── defaults.py          #   Constantes centralizadas
-├── ingest/                 # Fase 1 — 8 parsers + registry + auto-deteccion
+├── plugins/                # Sistema de plugins (v0.2.0)
+│   ├── protocols.py         #   Protocolos V2: ParserPlugin, ExporterPlugin, ConnectorPlugin
+│   ├── discovery.py         #   Descubrimiento via importlib.metadata.entry_points()
+│   └── hooks.py             #   Sistema de hooks del pipeline (HookManager)
+├── connectors/             # Infraestructura para conectores (preparacion)
+│   └── base.py              #   ConnectorRegistry, ConnectorError
+├── ingest/                 # Fase 1 — 11 parsers + registry + plugin discovery + auto-deteccion
 │   ├── base.py              #   ParsedContent dataclass + Parser Protocol
-│   ├── registry.py          #   Auto-deteccion + dispatch de parsers
+│   ├── registry.py          #   Auto-deteccion + plugin discovery + dispatch de parsers
 │   ├── markdown.py          #   .md con YAML front matter
 │   ├── plaintext.py         #   .txt, stdin, dumps de Slack
 │   ├── yaml_input.py        #   .yaml/.yml/.json estructurado
@@ -63,26 +72,31 @@ src/intake/
 │   ├── docx.py              #   .docx via python-docx
 │   ├── jira.py              #   Exports JSON de Jira (formato API + lista)
 │   ├── confluence.py        #   HTML de Confluence via BS4 + markdownify
-│   └── image.py             #   Analisis de imagenes via LLM vision
-├── analyze/                # Fase 2 — Orquestacion LLM (async)
+│   ├── image.py             #   Analisis de imagenes via LLM vision
+│   ├── url.py               #   HTTP/HTTPS URLs via httpx + markdownify
+│   ├── slack.py             #   Exports JSON de Slack (mensajes, threads, decisiones)
+│   └── github_issues.py     #   GitHub Issues JSON (issues, labels, comments)
+├── analyze/                # Fase 2 — Orquestacion LLM (async) + clasificacion
 │   ├── analyzer.py          #   Orquestador: extraction -> dedup -> risk -> design
 │   ├── prompts.py           #   3 system prompts (extraction, risk, design)
 │   ├── models.py            #   10 dataclasses del pipeline de analisis
+│   ├── complexity.py        #   Clasificacion heuristica de complejidad (quick/standard/enterprise)
 │   ├── extraction.py        #   JSON del LLM -> AnalysisResult tipado
 │   ├── dedup.py             #   Deduplicacion por similaridad Jaccard
 │   ├── conflicts.py         #   Validacion de conflictos
 │   ├── questions.py         #   Validacion de preguntas abiertas
 │   ├── risks.py             #   Parsing de evaluacion de riesgos
 │   └── design.py            #   Parsing del diseno (tareas, checks)
-├── generate/               # Fase 3 — Renderizado de templates Jinja2
+├── generate/               # Fase 3 — Renderizado de templates Jinja2 + generacion adaptativa
 │   ├── spec_builder.py      #   Orquesta 6 archivos spec + lock
+│   ├── adaptive.py          #   AdaptiveSpecBuilder — seleccion de archivos segun modo
 │   └── lock.py              #   spec.lock.yaml para reproducibilidad
 ├── verify/                 # Fase 4 — Motor de checks de aceptacion
 │   ├── engine.py            #   4 tipos: command, files_exist, pattern_present, pattern_absent
 │   └── reporter.py          #   Terminal (Rich), JSON, JUnit XML
-├── export/                 # Fase 5 — Output listo para agentes
+├── export/                 # Fase 5 — Output listo para agentes + plugin discovery
 │   ├── base.py              #   Exporter Protocol
-│   ├── registry.py          #   Dispatch por formato
+│   ├── registry.py          #   Plugin discovery + dispatch por formato
 │   ├── architect.py         #   Genera pipeline.yaml
 │   └── generic.py           #   Genera SPEC.md + verify.sh
 ├── diff/                   # Comparacion de specs
@@ -94,13 +108,15 @@ src/intake/
 ├── templates/              # Templates Jinja2 para generacion de specs
 │   ├── requirements.md.j2
 │   ├── design.md.j2
-│   ├── tasks.md.j2
+│   ├── tasks.md.j2          #   Incluye columna de Status por tarea
 │   ├── acceptance.yaml.j2
 │   ├── context.md.j2
 │   └── sources.md.j2
 └── utils/                  # Utilidades compartidas
     ├── file_detect.py       #   Deteccion de formato por extension
     ├── project_detect.py    #   Auto-deteccion del stack tecnologico
+    ├── source_uri.py        #   Parsing de URIs: file, stdin, url, jira://, github://
+    ├── task_state.py        #   Gestion de estado de tareas en tasks.md
     ├── cost.py              #   Tracking de costos con desglose por fase
     └── logging.py           #   Configuracion de structlog
 ```
@@ -138,7 +154,9 @@ class Parser(Protocol):
     def parse(self, source: str) -> ParsedContent: ...
 ```
 
-Los tres Protocols del sistema son:
+### Protocolos V1 (core)
+
+Los Protocols V1 del sistema son:
 
 | Protocol | Modulo | Metodos |
 |----------|--------|---------|
@@ -146,7 +164,19 @@ Los tres Protocols del sistema son:
 | `Exporter` | `export/base.py` | `export(spec_dir, output_dir) -> list[str]` |
 | `Reporter` | `verify/reporter.py` | `render(report) -> str` |
 
-Para agregar un nuevo parser, exporter o reporter, solo hay que implementar la interfaz correcta — no es necesario heredar de ninguna clase base.
+### Protocolos V2 (plugins)
+
+Los Protocols V2 extienden los V1 con metadata y capacidades adicionales para plugins externos:
+
+| Protocol | Modulo | Metodos |
+|----------|--------|---------|
+| `ParserPlugin` | `plugins/protocols.py` | `meta`, `supported_extensions`, `confidence()`, `can_parse()`, `parse()` |
+| `ExporterPlugin` | `plugins/protocols.py` | `meta`, `supported_agents`, `export() -> ExportResult` |
+| `ConnectorPlugin` | `plugins/protocols.py` | `meta`, `uri_schemes`, `can_handle()`, `fetch()` (async), `validate_config()` |
+
+Los parsers existentes (V1) siguen funcionando. Los registries aceptan tanto V1 como V2. Para agregar un nuevo parser, exporter o reporter, solo hay que implementar la interfaz correcta — no es necesario heredar de ninguna clase base.
+
+Ver [Plugins](plugins.md) para mas detalles.
 
 ---
 
@@ -196,6 +226,14 @@ PresetError(preset_name)
 LLMError(reason, suggestion)
 ├── CostLimitError(accumulated, limit)
 └── APIKeyMissingError(env_var)
+
+PluginError
+└── PluginLoadError
+
+ConnectorError
+└── ConnectorNotFoundError
+
+TaskStateError
 ```
 
 ---
@@ -215,7 +253,45 @@ LLMError(reason, suggestion)
 | `markdownify` | >=0.13 | Conversion HTML a Markdown |
 | `jinja2` | >=3.1 | Renderizado de templates |
 | `structlog` | >=24.0 | Logging estructurado |
-| `httpx` | >=0.27 | HTTP client (integraciones futuras) |
+| `httpx` | >=0.27 | HTTP client (URL parser, conectores) |
+
+---
+
+## Sistema de plugins
+
+Desde v0.2.0, intake usa una arquitectura plugin-first basada en entry_points de Python (PEP 621).
+
+### Descubrimiento
+
+Los plugins se descubren automaticamente via `importlib.metadata.entry_points()` en tres grupos:
+
+| Grupo | Contenido |
+|-------|-----------|
+| `intake.parsers` | 11 parsers built-in |
+| `intake.exporters` | 2 exporters built-in |
+| `intake.connectors` | (vacio — preparacion para Fase 2) |
+
+Los registries (`ParserRegistry`, `ExporterRegistry`) intentan plugin discovery primero y caen back a registro manual si falla. Esto permite que plugins externos se registren automaticamente con solo instalar el paquete.
+
+### Hooks
+
+El `HookManager` permite registrar callbacks que se ejecutan en respuesta a eventos del pipeline. Los callbacks se ejecutan en orden de registro; las excepciones se capturan sin bloquear otros callbacks.
+
+Ver [Plugins](plugins.md) para documentacion completa.
+
+---
+
+## Clasificacion de complejidad y generacion adaptativa
+
+El modulo `analyze/complexity.py` clasifica automaticamente la complejidad de las fuentes para seleccionar el modo de generacion optimo:
+
+| Modo | Criterios | Archivos generados |
+|------|-----------|-------------------|
+| `quick` | <500 palabras, 1 fuente, sin estructura | `context.md` + `tasks.md` |
+| `standard` | Default | Los 6 archivos spec completos |
+| `enterprise` | 4+ fuentes O >5000 palabras | Los 6 archivos + riesgos detallados |
+
+El `AdaptiveSpecBuilder` envuelve al `SpecBuilder` estandar y filtra los archivos segun el modo. Se puede forzar un modo especifico con `--mode` en el CLI.
 
 ---
 
@@ -223,7 +299,8 @@ LLMError(reason, suggestion)
 
 1. **Offline primero** — Todo excepto `init` y `add` funciona sin conexion a internet.
 2. **Provider-agnostic** — Cualquier modelo que LiteLLM soporte: Anthropic, OpenAI, Google, modelos locales.
-3. **Sin magic strings** — Todas las constantes estan definidas explicitamente en `defaults.py`.
-4. **Budget enforcement** — El costo se trackea por llamada LLM con limites configurables.
-5. **Tipado estricto** — `mypy --strict` con cero errores en todo el codebase.
-6. **Errores informativos** — Cada excepcion dice que paso, por que, y como solucionarlo.
+3. **Plugin-first** — Parsers y exporters se descubren via entry_points. Fallback a registro manual.
+4. **Sin magic strings** — Todas las constantes estan definidas explicitamente en `defaults.py`.
+5. **Budget enforcement** — El costo se trackea por llamada LLM con limites configurables.
+6. **Tipado estricto** — `mypy --strict` con cero errores en todo el codebase.
+7. **Errores informativos** — Cada excepcion dice que paso, por que, y como solucionarlo.

@@ -19,9 +19,7 @@ def parser() -> PlaintextParser:
 
 
 class TestPlaintextParser:
-    def test_can_parse_txt_file(
-        self, parser: PlaintextParser, plaintext_fixture: Path
-    ) -> None:
+    def test_can_parse_txt_file(self, parser: PlaintextParser, plaintext_fixture: Path) -> None:
         assert parser.can_parse(str(plaintext_fixture)) is True
 
     def test_can_parse_stdin(self, parser: PlaintextParser) -> None:
@@ -30,9 +28,7 @@ class TestPlaintextParser:
     def test_cannot_parse_nonexistent(self, parser: PlaintextParser) -> None:
         assert parser.can_parse("/nonexistent/file.txt") is False
 
-    def test_parse_extracts_text(
-        self, parser: PlaintextParser, plaintext_fixture: Path
-    ) -> None:
+    def test_parse_extracts_text(self, parser: PlaintextParser, plaintext_fixture: Path) -> None:
         result = parser.parse(str(plaintext_fixture))
         assert result.format == "plaintext"
         assert "password reset" in result.text.lower()
@@ -56,6 +52,7 @@ class TestPlaintextParser:
 
     def test_parse_empty_file(self, parser: PlaintextParser, tmp_path: Path) -> None:
         from intake.ingest.base import EmptySourceError
+
         empty = tmp_path / "empty.txt"
         empty.write_text("")
         with pytest.raises(EmptySourceError):

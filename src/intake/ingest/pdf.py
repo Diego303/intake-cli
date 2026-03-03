@@ -81,10 +81,12 @@ class PdfParser:
 
                 if page_content.strip():
                     text_parts.append(page_content)
-                    sections.append({
-                        "title": f"Page {i}",
-                        "content": page_content.strip(),
-                    })
+                    sections.append(
+                        {
+                            "title": f"Page {i}",
+                            "content": page_content.strip(),
+                        }
+                    )
 
             page_count = len(pdf.pages)
 
@@ -160,6 +162,6 @@ class PdfParser:
             padded = list(row)
             while len(padded) < len(header):
                 padded.append("")
-            lines.append("| " + " | ".join(padded[:len(header)]) + " |")
+            lines.append("| " + " | ".join(padded[: len(header)]) + " |")
 
         return "\n".join(lines)

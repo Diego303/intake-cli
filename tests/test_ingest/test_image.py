@@ -51,9 +51,7 @@ class TestImageParser:
         assert "wireframe" in result.text.lower()
         assert "login" in result.text.lower()
 
-    def test_parse_metadata(
-        self, parser: ImageParser, image_fixture: Path
-    ) -> None:
+    def test_parse_metadata(self, parser: ImageParser, image_fixture: Path) -> None:
         result = parser.parse(str(image_fixture))
         assert result.metadata["source_type"] == "image"
         assert result.metadata["image_format"] == "png"

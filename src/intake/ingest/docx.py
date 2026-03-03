@@ -118,11 +118,13 @@ class DocxParser:
 
             if style_name.startswith("Heading"):
                 if current_heading is not None:
-                    sections.append({
-                        "title": current_heading,
-                        "level": current_level,
-                        "content": "\n".join(current_content).strip(),
-                    })
+                    sections.append(
+                        {
+                            "title": current_heading,
+                            "level": current_level,
+                            "content": "\n".join(current_content).strip(),
+                        }
+                    )
 
                 current_heading = paragraph.text.strip()
                 level_part = style_name.replace("Heading", "").strip()
@@ -132,11 +134,13 @@ class DocxParser:
                 current_content.append(paragraph.text)
 
         if current_heading is not None:
-            sections.append({
-                "title": current_heading,
-                "level": current_level,
-                "content": "\n".join(current_content).strip(),
-            })
+            sections.append(
+                {
+                    "title": current_heading,
+                    "level": current_level,
+                    "content": "\n".join(current_content).strip(),
+                }
+            )
 
         return sections
 
@@ -171,7 +175,7 @@ class DocxParser:
         for row in rows[1:]:
             while len(row) < len(header):
                 row.append("")
-            lines.append("| " + " | ".join(row[:len(header)]) + " |")
+            lines.append("| " + " | ".join(row[: len(header)]) + " |")
 
         return "\n".join(lines)
 

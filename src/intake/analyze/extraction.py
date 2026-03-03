@@ -32,9 +32,7 @@ def parse_extraction(raw: dict[str, object]) -> AnalysisResult:
         result.functional_requirements.append(_parse_requirement(item, "functional"))
 
     for item in _get_list(raw, "non_functional_requirements"):
-        result.non_functional_requirements.append(
-            _parse_requirement(item, "non_functional")
-        )
+        result.non_functional_requirements.append(_parse_requirement(item, "non_functional"))
 
     for item in _get_list(raw, "conflicts"):
         result.conflicts.append(_parse_conflict(item))

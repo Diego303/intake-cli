@@ -87,12 +87,94 @@ class TestParserRegistry:
         assert "plaintext" in registry.registered_formats
 
 
+class TestJsonSubtypeDetection:
+    def test_detect_slack_export(self, tmp_path: Path) -> None:
+        """JSON with message objects is detected as slack."""
+        slack_file = tmp_path / "export.json"
+        slack_file.write_text(
+            json.dumps(
+                [
+                    {"type": "message", "user": "U1", "text": "hello", "ts": "1700000000.000"},
+                ]
+            )
+        )
+        registry = ParserRegistry()
+        assert registry.detect_format(str(slack_file)) == "slack"
+
+    def test_detect_github_issues_list(self, tmp_path: Path) -> None:
+        """JSON with issue objects is detected as github_issues."""
+        issues_file = tmp_path / "issues.json"
+        issues_file.write_text(
+            json.dumps(
+                [
+                    {
+                        "number": 1,
+                        "title": "Bug",
+                        "html_url": "https://github.com/org/repo/issues/1",
+                    },
+                ]
+            )
+        )
+        registry = ParserRegistry()
+        assert registry.detect_format(str(issues_file)) == "github_issues"
+
+    def test_detect_github_single_issue(self, tmp_path: Path) -> None:
+        """Single GitHub issue object is detected as github_issues."""
+        issue_file = tmp_path / "issue.json"
+        issue_file.write_text(
+            json.dumps(
+                {
+                    "number": 42,
+                    "title": "Feature",
+                    "html_url": "https://github.com/org/repo/issues/42",
+                }
+            )
+        )
+        registry = ParserRegistry()
+        assert registry.detect_format(str(issue_file)) == "github_issues"
+
+    def test_detect_github_issues_by_labels(self, tmp_path: Path) -> None:
+        """GitHub issues with title + labels (no html_url) are detected."""
+        issues_file = tmp_path / "issues.json"
+        issues_file.write_text(
+            json.dumps(
+                [
+                    {"number": 1, "title": "Bug", "labels": ["bug"]},
+                ]
+            )
+        )
+        registry = ParserRegistry()
+        assert registry.detect_format(str(issues_file)) == "github_issues"
+
+    def test_jira_takes_priority_over_github(self, tmp_path: Path) -> None:
+        """Jira format (key + fields) takes priority over GitHub."""
+        jira_file = tmp_path / "data.json"
+        jira_file.write_text(
+            json.dumps(
+                [
+                    {"key": "PROJ-1", "fields": {"summary": "Task"}, "number": 1},
+                ]
+            )
+        )
+        registry = ParserRegistry()
+        assert registry.detect_format(str(jira_file)) == "jira"
+
+
 class TestCreateDefaultRegistry:
     def test_creates_registry_with_all_parsers(self) -> None:
         registry = create_default_registry()
         expected = [
-            "confluence", "docx", "image", "jira",
-            "markdown", "pdf", "plaintext", "yaml",
+            "confluence",
+            "docx",
+            "github_issues",
+            "image",
+            "jira",
+            "markdown",
+            "pdf",
+            "plaintext",
+            "slack",
+            "url",
+            "yaml",
         ]
         assert registry.registered_formats == expected
 
@@ -105,3 +187,36 @@ class TestCreateDefaultRegistry:
         registry = create_default_registry()
         result = registry.parse(str(jira_fixture))
         assert result.format == "jira"
+
+    def test_plugin_discovery_finds_parsers(self) -> None:
+        """Plugin discovery via entry_points finds all built-in parsers."""
+        registry = create_default_registry(use_plugins=True)
+        assert len(registry.registered_formats) >= 11
+        assert "markdown" in registry.registered_formats
+        assert "slack" in registry.registered_formats
+        assert "github_issues" in registry.registered_formats
+        assert "url" in registry.registered_formats
+
+    def test_manual_fallback_works(self) -> None:
+        """Manual fallback creates the same set of parsers."""
+        registry = create_default_registry(use_plugins=False)
+        expected = [
+            "confluence",
+            "docx",
+            "github_issues",
+            "image",
+            "jira",
+            "markdown",
+            "pdf",
+            "plaintext",
+            "slack",
+            "url",
+            "yaml",
+        ]
+        assert registry.registered_formats == expected
+
+    def test_plugin_and_manual_produce_same_formats(self) -> None:
+        """Plugin discovery and manual registration produce the same formats."""
+        plugin_registry = create_default_registry(use_plugins=True)
+        manual_registry = create_default_registry(use_plugins=False)
+        assert plugin_registry.registered_formats == manual_registry.registered_formats

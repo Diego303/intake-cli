@@ -195,11 +195,23 @@ class Exporter(Protocol):
 
 El metodo `export()` recibe el directorio de la spec y el directorio de salida, y retorna la lista de archivos generados.
 
-Para agregar un nuevo exporter:
+Para agregar un nuevo exporter hay dos opciones:
+
+### Opcion 1: Exporter built-in
 
 1. Crear un archivo en `src/intake/export/` (ej: `cursor.py`)
 2. Implementar el metodo `export(spec_dir, output_dir) -> list[str]`
-3. Registrarlo en `create_default_registry()` en `registry.py`
+3. Registrarlo en `create_default_registry()` y como entry_point en `pyproject.toml`
+
+### Opcion 2: Plugin externo (V2 ExporterPlugin)
+
+1. Crear un paquete Python separado
+2. Implementar el protocolo `ExporterPlugin` de `intake.plugins.protocols`
+3. Registrar como entry_point en el grupo `intake.exporters` en tu `pyproject.toml`
+
+El exporter sera descubierto automaticamente al instalar el paquete. Ver [Plugins](plugins.md) para detalles.
+
+**Nota:** Desde v0.2.0, los exporters se descubren automaticamente via el sistema de plugins. El `ExporterRegistry` intenta plugin discovery primero y cae back a registro manual si falla.
 
 ---
 

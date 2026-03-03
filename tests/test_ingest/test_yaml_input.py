@@ -25,25 +25,19 @@ class TestYamlInputParser:
     def test_cannot_parse_nonexistent(self, parser: YamlInputParser) -> None:
         assert parser.can_parse("/nonexistent/file.yaml") is False
 
-    def test_parse_extracts_text(
-        self, parser: YamlInputParser, yaml_fixture: Path
-    ) -> None:
+    def test_parse_extracts_text(self, parser: YamlInputParser, yaml_fixture: Path) -> None:
         result = parser.parse(str(yaml_fixture))
         assert result.format == "yaml"
         assert "Payment Gateway" in result.text
 
-    def test_parse_extracts_sections(
-        self, parser: YamlInputParser, yaml_fixture: Path
-    ) -> None:
+    def test_parse_extracts_sections(self, parser: YamlInputParser, yaml_fixture: Path) -> None:
         result = parser.parse(str(yaml_fixture))
         assert result.has_structure is True
         titles = [s["title"] for s in result.sections]
         assert "project" in titles
         assert "requirements" in titles
 
-    def test_parse_metadata(
-        self, parser: YamlInputParser, yaml_fixture: Path
-    ) -> None:
+    def test_parse_metadata(self, parser: YamlInputParser, yaml_fixture: Path) -> None:
         result = parser.parse(str(yaml_fixture))
         assert result.metadata["source_type"] == "yaml"
         assert "top_level_keys" in result.metadata
@@ -55,9 +49,7 @@ class TestYamlInputParser:
         assert result.format == "yaml"
         assert result.metadata["source_type"] == "json"
 
-    def test_parse_invalid_yaml_raises(
-        self, parser: YamlInputParser, tmp_path: Path
-    ) -> None:
+    def test_parse_invalid_yaml_raises(self, parser: YamlInputParser, tmp_path: Path) -> None:
         bad = tmp_path / "bad.yaml"
         bad.write_text("invalid: yaml: [broken: {")
         with pytest.raises(ParseError, match=r"Invalid \.yaml syntax"):

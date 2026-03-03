@@ -124,6 +124,52 @@ Failed to parse 'huge.pdf': File size 52428800 bytes exceeds limit of 50 MB
 
 ---
 
+### URL no accesible
+
+**Error:**
+```
+Failed to parse 'https://example.com/page': Connection error: ...
+  Hint: Check that the URL is correct and accessible.
+```
+
+**Solucion:** intake no pudo descargar la pagina. Verifica:
+
+1. Que la URL es correcta y accesible desde tu red
+2. Que no requiere autenticacion (intake no soporta URLs con login)
+3. Que no hay un firewall o proxy bloqueando la conexion
+
+Si la pagina requiere autenticacion, descarga el contenido manualmente y usa el archivo local:
+
+```bash
+# En vez de
+intake init "Feature" -s https://internal-wiki.com/page  # falla si requiere login
+
+# Descarga manualmente y usa el archivo
+curl -o page.html https://internal-wiki.com/page
+intake init "Feature" -s page.html
+```
+
+---
+
+### URI de esquema no soportado
+
+**Warning:**
+```
+Source 'jira://PROJ-123' uses scheme 'jira' - connector not available yet
+```
+
+**Solucion:** Los conectores API directos (jira://, confluence://, github://) aun no estan implementados. Mientras tanto:
+
+1. **Jira**: Exporta los issues como JSON desde la interfaz web y usa el archivo
+2. **Confluence**: Exporta la pagina como HTML y usa el archivo
+3. **GitHub**: Usa `gh api` para exportar issues como JSON:
+   ```bash
+   gh api repos/org/repo/issues > issues.json
+   intake init "Bugs" -s issues.json
+   ```
+
+---
+
 ### Formato no soportado
 
 **Error:**
@@ -291,6 +337,37 @@ Paquetes opcionales por parser:
 | PDF | pdfplumber | `pip install pdfplumber` |
 | DOCX | python-docx | `pip install python-docx` |
 | Confluence | beautifulsoup4, markdownify | `pip install beautifulsoup4 markdownify` |
+| URLs | httpx, beautifulsoup4, markdownify | `pip install httpx beautifulsoup4 markdownify` |
+
+---
+
+### Plugin no se carga
+
+**Error visible con:**
+```bash
+intake plugins list -v   # La columna "Error" muestra el detalle
+intake plugins check     # Reporta FAIL con detalles
+```
+
+**Solucion:**
+
+1. **Plugin externo no instalado**: verifica que el paquete esta instalado en el mismo entorno:
+   ```bash
+   pip list | grep mi-plugin
+   ```
+
+2. **Entry point mal configurado**: verifica que `pyproject.toml` tiene el entry_point correcto:
+   ```toml
+   [project.entry-points."intake.parsers"]
+   mi-formato = "mi_plugin.parser:MiParser"
+   ```
+
+3. **Error de importacion**: el modulo del plugin falla al importar. Verifica las dependencias del plugin.
+
+4. **Reinstalar**: a veces los entry_points no se actualizan sin reinstalar:
+   ```bash
+   pip install -e .
+   ```
 
 ---
 
@@ -399,3 +476,35 @@ Si. Ver la seccion de [integracion CI/CD](verificacion.md#integracion-con-cicd) 
 ### Los archivos spec se deben commitear a git?
 
 Si, es recomendable. Las specs son archivos de texto que se benefician del versionado. Ver [Versionado de specs](buenas-practicas.md#versionado-de-specs).
+
+### Que es el modo quick / standard / enterprise?
+
+intake auto-detecta la complejidad de tus fuentes y selecciona un modo de generacion:
+
+- **quick** (<500 palabras, 1 fuente simple): solo genera `context.md` + `tasks.md`
+- **standard** (default): genera los 6 archivos spec completos
+- **enterprise** (4+ fuentes o >5000 palabras): todos los archivos + riesgos detallados
+
+Puedes forzar un modo con `--mode`:
+
+```bash
+intake init "Fix rapido" -s bug.txt --mode quick
+```
+
+### Como instalo plugins externos?
+
+Los plugins se descubren automaticamente al instalar paquetes que registran entry_points en los grupos `intake.parsers`, `intake.exporters`, o `intake.connectors`:
+
+```bash
+pip install mi-plugin-intake
+intake plugins list   # deberia aparecer el nuevo plugin
+```
+
+Ver [Plugins](plugins.md) para mas detalles.
+
+### Como veo el progreso de las tareas?
+
+```bash
+intake task list specs/mi-feature/
+intake task update specs/mi-feature/ 1 done --note "Completado"
+```

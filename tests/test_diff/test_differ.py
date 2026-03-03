@@ -30,12 +30,16 @@ def spec_a(tmp_path: Path) -> Path:
         "### Task 1: Setup project\n\nInitialize.\n\n"
         "### Task 2: Login endpoint\n\nCreate login.\n"
     )
-    (spec / "acceptance.yaml").write_text(yaml.dump({
-        "checks": [
-            {"id": "tests", "name": "Run tests", "type": "command", "command": "pytest"},
-            {"id": "lint", "name": "Lint", "type": "command", "command": "ruff check"},
-        ],
-    }))
+    (spec / "acceptance.yaml").write_text(
+        yaml.dump(
+            {
+                "checks": [
+                    {"id": "tests", "name": "Run tests", "type": "command", "command": "pytest"},
+                    {"id": "lint", "name": "Lint", "type": "command", "command": "ruff check"},
+                ],
+            }
+        )
+    )
 
     return spec
 
@@ -58,12 +62,21 @@ def spec_b(tmp_path: Path) -> Path:
         "### Task 2: Login endpoint\n\nCreate login.\n\n"
         "### Task 3: Password reset\n\nCreate reset flow.\n"
     )
-    (spec / "acceptance.yaml").write_text(yaml.dump({
-        "checks": [
-            {"id": "tests", "name": "Run tests", "type": "command", "command": "pytest"},
-            {"id": "security", "name": "Security scan", "type": "command", "command": "bandit"},
-        ],
-    }))
+    (spec / "acceptance.yaml").write_text(
+        yaml.dump(
+            {
+                "checks": [
+                    {"id": "tests", "name": "Run tests", "type": "command", "command": "pytest"},
+                    {
+                        "id": "security",
+                        "name": "Security scan",
+                        "type": "command",
+                        "command": "bandit",
+                    },
+                ],
+            }
+        )
+    )
 
     return spec
 
@@ -157,9 +170,7 @@ def test_diff_missing_file_handled(tmp_path: Path) -> None:
     spec_b = tmp_path / "spec-b"
     spec_b.mkdir()
 
-    (spec_b / "requirements.md").write_text(
-        "# Requirements\n\n### FR-01: Login\nLogin feature.\n"
-    )
+    (spec_b / "requirements.md").write_text("# Requirements\n\n### FR-01: Login\nLogin feature.\n")
 
     differ = SpecDiffer()
     result = differ.diff(str(spec_a), str(spec_b))

@@ -66,6 +66,20 @@ class TestIsImageFile:
 
 class TestExtensionMap:
     def test_all_expected_formats_present(self) -> None:
-        expected = {".md", ".txt", ".pdf", ".docx", ".json", ".yaml", ".yml",
-                    ".html", ".htm", ".png", ".jpg", ".jpeg", ".webp", ".gif"}
+        expected = {
+            ".md",
+            ".txt",
+            ".pdf",
+            ".docx",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".html",
+            ".htm",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".gif",
+        }
         assert expected.issubset(set(EXTENSION_MAP.keys()))

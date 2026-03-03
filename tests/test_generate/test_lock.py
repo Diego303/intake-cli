@@ -61,9 +61,7 @@ class TestSpecLock:
         source = tmp_path / "reqs.md"
         source.write_text("original content")
 
-        lock = SpecLock(
-            source_hashes={str(source): _hash_file(str(source))}
-        )
+        lock = SpecLock(source_hashes={str(source): _hash_file(str(source))})
 
         # Not stale before change
         assert lock.is_stale([str(source)]) is False
@@ -81,9 +79,7 @@ class TestSpecLock:
     def test_is_stale_returns_false_when_all_match(self, tmp_path: Path) -> None:
         source = tmp_path / "reqs.md"
         source.write_text("content")
-        lock = SpecLock(
-            source_hashes={str(source): _hash_file(str(source))}
-        )
+        lock = SpecLock(source_hashes={str(source): _hash_file(str(source))})
         assert lock.is_stale([str(source)]) is False
 
 

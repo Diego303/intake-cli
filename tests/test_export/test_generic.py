@@ -19,29 +19,31 @@ def spec_dir(tmp_path: Path) -> Path:
     spec = tmp_path / "test-spec"
     spec.mkdir()
 
-    (spec / "requirements.md").write_text(
-        "# Requirements\n\n## FR-01: Login\nUser can log in.\n"
-    )
+    (spec / "requirements.md").write_text("# Requirements\n\n## FR-01: Login\nUser can log in.\n")
     (spec / "design.md").write_text("# Design\n\n## Architecture\nMicroservices.\n")
     (spec / "tasks.md").write_text("# Tasks\n\n### 1: Setup project\n")
-    (spec / "acceptance.yaml").write_text(yaml.dump({
-        "checks": [
+    (spec / "acceptance.yaml").write_text(
+        yaml.dump(
             {
-                "id": "tests",
-                "name": "Run tests",
-                "type": "command",
-                "command": "pytest tests/ -q",
-                "required": True,
-            },
-            {
-                "id": "lint",
-                "name": "Lint check",
-                "type": "command",
-                "command": "ruff check .",
-                "required": False,
-            },
-        ],
-    }))
+                "checks": [
+                    {
+                        "id": "tests",
+                        "name": "Run tests",
+                        "type": "command",
+                        "command": "pytest tests/ -q",
+                        "required": True,
+                    },
+                    {
+                        "id": "lint",
+                        "name": "Lint check",
+                        "type": "command",
+                        "command": "ruff check .",
+                        "required": False,
+                    },
+                ],
+            }
+        )
+    )
     (spec / "context.md").write_text("# Context\n\nStack: python\n")
     (spec / "sources.md").write_text("# Sources\n\n- reqs.md\n")
 

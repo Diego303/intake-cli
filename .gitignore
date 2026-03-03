@@ -92,5 +92,6 @@ logs/
 tmp/
 CLAUDE.md
 .coverage
+.claude/
 
 __pycache__/

@@ -178,17 +178,17 @@ class ConfluenceParser:
             end = matches[i + 1].start() if i + 1 < len(matches) else len(markdown_text)
             content = markdown_text[start:end].strip()
 
-            sections.append({
-                "title": heading_text,
-                "level": str(heading_level),
-                "content": content,
-            })
+            sections.append(
+                {
+                    "title": heading_text,
+                    "level": str(heading_level),
+                    "content": content,
+                }
+            )
 
         return sections
 
-    def _extract_metadata(
-        self, soup: object, title: str
-    ) -> dict[str, str]:
+    def _extract_metadata(self, soup: object, title: str) -> dict[str, str]:
         """Extract page metadata from HTML elements."""
         from bs4 import BeautifulSoup, Tag
 

@@ -88,8 +88,10 @@ class PlaintextParser:
         sections: list[dict[str, str]] = []
         for i, paragraph in enumerate(paragraphs, 1):
             first_line = paragraph.split("\n", maxsplit=1)[0][:80]
-            sections.append({
-                "title": f"Paragraph {i}: {first_line}",
-                "content": paragraph,
-            })
+            sections.append(
+                {
+                    "title": f"Paragraph {i}: {first_line}",
+                    "content": paragraph,
+                }
+            )
         return sections

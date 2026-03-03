@@ -79,6 +79,9 @@ intake init "Mi feature" \
 | PDF | Specs externas, documentos regulatorios, contratos |
 | DOCX | Documentos de Word de stakeholders |
 | Imagenes | Wireframes, mockups, diagramas de arquitectura |
+| URLs | Documentacion en wikis, RFCs online, paginas de referencia |
+| Slack JSON | Decisiones de equipo, action items, conversaciones tecnicas |
+| GitHub Issues | Bugs reportados, feature requests, estado del backlog |
 
 ### Deduplicacion automatica
 
@@ -87,6 +90,36 @@ Cuando se combinan fuentes, intake deduplica automaticamente requisitos similare
 ### Deteccion de conflictos
 
 intake tambien detecta conflictos entre fuentes. Por ejemplo, si un documento dice "usar PostgreSQL" y otro dice "usar MongoDB", se reporta como conflicto con una recomendacion.
+
+---
+
+## Elegir el modo de generacion
+
+intake puede auto-detectar el modo optimo basandose en la complejidad de las fuentes, o puedes forzarlo manualmente:
+
+| Situacion | Modo | Por que |
+|-----------|------|---------|
+| Bug fix simple, 1 archivo de notas | `quick` | Solo genera context.md + tasks.md, rapido y barato |
+| Feature nueva de complejidad normal | `standard` | Los 6 archivos completos |
+| Sistema con muchas fuentes o texto extenso | `enterprise` | Maximo detalle y riesgos |
+| No estas seguro | (omitir `--mode`) | intake lo auto-detecta |
+
+```bash
+# Auto-deteccion (recomendado)
+intake init "Mi feature" -s reqs.md
+
+# Forzar modo
+intake init "Fix rapido" -s bug.txt --mode quick
+intake init "Sistema critico" -s reqs.md -s jira.json -s confluence.html --mode enterprise
+```
+
+La auto-deteccion funciona asi:
+
+- **quick**: <500 palabras, 1 fuente, sin contenido estructurado (jira, yaml, etc.)
+- **enterprise**: 4+ fuentes O >5000 palabras
+- **standard**: todo lo demas
+
+Se puede desactivar la auto-deteccion con `spec.auto_mode: false` en `.intake.yaml`.
 
 ---
 
@@ -271,12 +304,53 @@ Esto permite:
 
 ---
 
+## Seguimiento de tareas
+
+Despues de generar una spec, puedes usar `intake task` para seguir el progreso de implementacion directamente en `tasks.md`:
+
+```bash
+# Ver el estado de todas las tareas
+intake task list specs/mi-feature/
+
+# Marcar una tarea como en progreso
+intake task update specs/mi-feature/ 1 in_progress
+
+# Marcar como completada con nota
+intake task update specs/mi-feature/ 1 done --note "Tests pasando"
+
+# Filtrar por estado
+intake task list specs/mi-feature/ --status pending --status blocked
+```
+
+**Estados disponibles:** `pending`, `in_progress`, `done`, `blocked`
+
+El estado se persiste directamente en `tasks.md`, asi que se versiona con git junto con el resto de la spec.
+
+---
+
+## Usar fuentes desde URLs
+
+Puedes pasar URLs directamente como fuentes sin descargar manualmente:
+
+```bash
+# Wiki interna
+intake init "API review" -s https://wiki.company.com/rfc/auth
+
+# Documentacion publica
+intake init "Integration" -s https://docs.example.com/api/v2
+```
+
+intake descarga la pagina, convierte el HTML a Markdown, y lo procesa como cualquier otra fuente. Auto-detecta si es contenido de Confluence, Jira, o GitHub por patrones en la URL.
+
+---
+
 ## Workflow recomendado
 
 ```
-1. Recopilar requisitos (cualquier formato)
+1. Recopilar requisitos (cualquier formato, archivos o URLs)
            |
 2. intake init "Feature" -s fuente1 -s fuente2
+   (opcionalmente: --mode quick|standard|enterprise)
            |
 3. Revisar la spec generada
    - requirements.md: requisitos completos?
@@ -288,9 +362,14 @@ Esto permite:
            |
 5. Implementar (manualmente o con agente IA)
    - intake export specs/feature/ -f architect
+   - intake task update specs/feature/ 1 in_progress
            |
-6. Verificar
+6. Seguir progreso
+   - intake task list specs/feature/
+   - intake task update specs/feature/ 1 done --note "Implementado"
+           |
+7. Verificar
    - intake verify specs/feature/ -p .
            |
-7. Iterar hasta que todos los checks pasen
+8. Iterar hasta que todos los checks pasen
 ```

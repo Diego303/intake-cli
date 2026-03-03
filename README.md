@@ -77,13 +77,26 @@ intake init "API gateway" -s reqs.yaml --preset enterprise
 
 # Export for a specific agent
 intake init "User endpoint" -s reqs.pdf --format architect
+
+# Quick mode for simple tasks (only context.md + tasks.md)
+intake init "Fix login bug" -s notes.txt --mode quick
+
+# Fetch requirements from a URL
+intake init "API review" -s https://wiki.company.com/rfc/auth
+
+# List discovered plugins
+intake plugins list
+
+# Track task progress
+intake task list ./specs/auth-oauth2
+intake task update ./specs/auth-oauth2 1 done --note "Implemented and tested"
 ```
 
 ---
 
 ## Supported Input Formats
 
-| Format | Extensions | Parser |
+| Format | Extensions / Source | Parser |
 |--------|-----------|--------|
 | Markdown | `.md` | Front matter, heading-based sections |
 | Plain text | `.txt`, stdin (`-`) | Paragraph sections, Slack dumps |
@@ -93,8 +106,11 @@ intake init "User endpoint" -s reqs.pdf --format architect
 | Jira export | `.json` (auto-detected) | Issues, comments, links, priorities |
 | Confluence export | `.html` (auto-detected) | Clean Markdown via BS4 + markdownify |
 | Images | `.png`, `.jpg`, `.webp`, `.gif` | LLM vision analysis |
+| URLs | `http://`, `https://` | Fetches page, converts HTML → Markdown |
+| Slack export | `.json` (auto-detected) | Messages, threads, decisions, action items |
+| GitHub Issues | `.json` (auto-detected) | Issues, labels, comments, cross-references |
 
-Format is auto-detected by file extension and content inspection. Jira JSON exports and Confluence HTML exports are distinguished automatically from generic JSON/HTML files.
+Format is auto-detected by file extension and content inspection. Jira, Slack, and GitHub Issues JSON exports are distinguished automatically from generic JSON files. Confluence HTML is distinguished from generic HTML.
 
 ---
 
@@ -111,6 +127,10 @@ Format is auto-detected by file extension and content inspection. Jira JSON expo
 | `intake diff` | Compare two spec versions | **Available** |
 | `intake doctor` | Check environment and configuration health | **Available** |
 | `intake doctor --fix` | Auto-fix environment issues (install deps, create config) | **Available** |
+| `intake plugins list` | List all discovered plugins (parsers, exporters) | **Available** |
+| `intake plugins check` | Validate plugin compatibility | **Available** |
+| `intake task list` | List tasks from a spec with current status | **Available** |
+| `intake task update` | Update a task's status (pending/in_progress/done/blocked) | **Available** |
 
 ---
 
@@ -134,6 +154,7 @@ spec:
   design_depth: moderate       # minimal | moderate | detailed
   task_granularity: medium     # coarse | medium | fine
   risk_assessment: true
+  auto_mode: true              # auto-detect quick/standard/enterprise
 
 export:
   default_format: generic      # architect | claude-code | cursor | kiro | generic
@@ -176,13 +197,19 @@ See the [`examples/`](examples/) directory for ready-to-run scenarios:
 src/intake/
 ├── cli.py                  # Click CLI — thin adapter, no logic
 ├── config/                 # Pydantic v2 models, presets, layered loader
-│   ├── schema.py           #   6 config models (LLM, Project, Spec, Verification, Export, Security)
+│   ├── schema.py           #   7 config models (LLM, Project, Spec, Verification, Export, Security, Connectors)
 │   ├── presets.py           #   minimal / standard / enterprise presets
 │   ├── loader.py            #   Layered merge: defaults → preset → YAML → CLI
 │   └── defaults.py          #   Centralized constants
-├── ingest/                 # Phase 1 — 8 parsers, registry, auto-detection
+├── plugins/                # Plugin system (v0.2.0)
+│   ├── protocols.py         #   V2 protocols: ParserPlugin, ExporterPlugin, ConnectorPlugin
+│   ├── discovery.py         #   Entry point scanning via importlib.metadata
+│   └── hooks.py             #   Pipeline hook system (HookManager)
+├── connectors/             # Connector infrastructure (Phase 2 prep)
+│   └── base.py              #   ConnectorRegistry, ConnectorError
+├── ingest/                 # Phase 1 — 11 parsers, registry, auto-detection
 │   ├── base.py              #   ParsedContent dataclass + Parser Protocol
-│   ├── registry.py          #   Auto-detection + parser dispatch
+│   ├── registry.py          #   Auto-detection + plugin discovery + parser dispatch
 │   ├── markdown.py          #   .md with YAML front matter
 │   ├── plaintext.py         #   .txt, stdin, Slack dumps
 │   ├── yaml_input.py        #   .yaml/.yml/.json structured input
@@ -190,11 +217,15 @@ src/intake/
 │   ├── docx.py              #   .docx via python-docx
 │   ├── jira.py              #   Jira JSON exports (API + list format)
 │   ├── confluence.py        #   Confluence HTML via BS4 + markdownify
-│   └── image.py             #   Image analysis via LLM vision
+│   ├── image.py             #   Image analysis via LLM vision
+│   ├── url.py               #   HTTP/HTTPS URLs via httpx + markdownify
+│   ├── slack.py             #   Slack workspace export JSON
+│   └── github_issues.py     #   GitHub Issues JSON
 ├── analyze/                # Phase 2 — LLM orchestration (async)
 │   ├── analyzer.py          #   Orchestrator: extraction → dedup → risk → design
 │   ├── prompts.py           #   3 system prompts (extraction, risk, design)
 │   ├── models.py            #   10 dataclasses for analysis pipeline
+│   ├── complexity.py        #   Heuristic complexity classification (quick/standard/enterprise)
 │   ├── extraction.py        #   LLM JSON → typed AnalysisResult
 │   ├── dedup.py             #   Jaccard word similarity deduplication
 │   ├── conflicts.py         #   Conflict validation
@@ -203,13 +234,14 @@ src/intake/
 │   └── design.py            #   Design output parsing (tasks, checks)
 ├── generate/               # Phase 3 — Jinja2 template rendering
 │   ├── spec_builder.py      #   Orchestrates 6 spec files + lock
+│   ├── adaptive.py          #   AdaptiveSpecBuilder — mode-aware file selection
 │   └── lock.py              #   spec.lock.yaml for reproducibility
 ├── verify/                 # Phase 4 — Acceptance check engine
 │   ├── engine.py           #   4 check types: command, files_exist, pattern_*
 │   └── reporter.py         #   Terminal (Rich), JSON, JUnit XML reporters
 ├── export/                 # Phase 5 — Agent-ready output
 │   ├── base.py             #   Exporter Protocol
-│   ├── registry.py         #   Format-based exporter dispatch
+│   ├── registry.py         #   Plugin discovery + format-based dispatch
 │   ├── architect.py        #   pipeline.yaml generation
 │   └── generic.py          #   SPEC.md + verify.sh generation
 ├── diff/                   # Spec comparison
@@ -221,13 +253,15 @@ src/intake/
 ├── templates/              # Jinja2 templates for spec generation
 │   ├── requirements.md.j2   #   FR, NFR, conflicts, open questions
 │   ├── design.md.j2         #   Components, files, tech decisions
-│   ├── tasks.md.j2          #   Task summary + detailed sections
+│   ├── tasks.md.j2          #   Task summary + status + detailed sections
 │   ├── acceptance.yaml.j2   #   Executable acceptance checks
 │   ├── context.md.j2        #   Project context for agents
 │   └── sources.md.j2        #   Source traceability mapping
-└── utils/                  # Shared utilities (logging, cost, detection)
+└── utils/                  # Shared utilities
     ├── file_detect.py       #   Extension-based format detection
     ├── project_detect.py    #   Auto-detect tech stack from project files
+    ├── source_uri.py        #   URI parsing (jira://, github://, http://, files, text)
+    ├── task_state.py         #   Task status tracking in tasks.md
     ├── cost.py              #   Cost accumulation with per-phase breakdown
     └── logging.py           #   structlog configuration
 ```
@@ -235,9 +269,11 @@ src/intake/
 **Key design principles:**
 
 - **Protocol over ABC** — All extension points use `typing.Protocol`
+- **Plugin-first architecture** — Parsers and exporters discovered via entry points, manual fallback
 - **Dataclasses for pipeline data, Pydantic for config** — Never mixed
 - **Async only in analyze/** — Everything else is synchronous
 - **Offline mode** — Parsing, verification, export, diff, doctor all work without LLM
+- **Adaptive generation** — Complexity auto-detection selects quick/standard/enterprise mode
 - **No magic strings** — All constants defined explicitly
 - **Budget enforcement** — LLM cost tracked per call with configurable limits
 
@@ -283,24 +319,29 @@ python -m pytest tests/ --cov=intake --cov-report=term-missing
 # Lint
 ruff check src/ tests/
 
+# Format
+ruff format src/ tests/
+
 # Type check (strict)
 mypy src/ --strict
 ```
 
-Current test suite: **313 tests**, **83% coverage**.
+Current test suite: **492 tests**, **86% coverage**, **0 mypy --strict errors**, **0 ruff warnings**.
 
 ### Implementation Status
 
 | Phase | Module | Status |
 |-------|--------|--------|
-| Phase 1 — Ingest | `ingest/` (8 parsers + registry) | Implemented |
-| Phase 2 — Analyze | `analyze/` (orchestrator + 7 sub-modules) | Implemented |
-| Phase 3 — Generate | `generate/` (spec builder + 6 templates + lock) | Implemented |
+| Phase 1 — Ingest | `ingest/` (11 parsers + plugin-based registry) | Implemented |
+| Phase 2 — Analyze | `analyze/` (orchestrator + 7 sub-modules + complexity) | Implemented |
+| Phase 3 — Generate | `generate/` (spec builder + adaptive builder + 6 templates + lock) | Implemented |
 | Phase 4 — Verify | `verify/` (engine + 3 reporters) | Implemented |
-| Phase 5 — Export | `export/` (architect + generic) | Implemented |
+| Phase 5 — Export | `export/` (architect + generic + plugin registry) | Implemented |
+| Plugins | `plugins/` (protocols + discovery + hooks) | Implemented |
+| Connectors | `connectors/` (registry infrastructure, no concrete connectors) | Implemented |
 | Standalone | `doctor/`, `config/`, `llm/`, `utils/` | Implemented |
 | Standalone | `diff/` (spec differ) | Implemented |
-| CLI | All 8 commands wired end-to-end | Implemented |
+| CLI | 13 commands/subcommands wired end-to-end | Implemented |
 
 ---
 

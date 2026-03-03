@@ -79,6 +79,7 @@ class MarkdownParser:
 
         try:
             import yaml
+
             data = yaml.safe_load(match.group(1))
             if isinstance(data, dict):
                 return {str(k): str(v) for k, v in data.items()}
@@ -105,10 +106,12 @@ class MarkdownParser:
             end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
             content = text[start:end].strip()
 
-            sections.append({
-                "title": heading_text,
-                "level": str(heading_level),
-                "content": content,
-            })
+            sections.append(
+                {
+                    "title": heading_text,
+                    "level": str(heading_level),
+                    "content": content,
+                }
+            )
 
         return sections

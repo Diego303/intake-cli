@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation</title>
+    <meta name="description" content="REST API documentation for the payment service">
+    <meta name="author" content="Platform Team">
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="/">Home</a>
+            <a href="/docs">Docs</a>
+            <a href="/api">API Reference</a>
+        </nav>
+    </header>
+
+    <main>
+        <h1>Payment Service API</h1>
+        <p>Welcome to the Payment Service API documentation. This API allows you to process payments, manage subscriptions, and handle refunds.</p>
+
+        <h2>Authentication</h2>
+        <p>All API requests require a valid API key passed in the <code>Authorization</code> header.</p>
+        <p>You can generate an API key from the <a href="/settings">developer settings</a> page.</p>
+
+        <h2>Endpoints</h2>
+
+        <h3>Create Payment</h3>
+        <p>Creates a new payment intent.</p>
+        <pre><code>POST /api/v1/payments
+Content-Type: application/json
+
+{
+  "amount": 5000,
+  "currency": "usd",
+  "description": "Order #1234"
+}</code></pre>
+
+        <h3>Get Payment Status</h3>
+        <p>Retrieves the current status of a payment.</p>
+        <pre><code>GET /api/v1/payments/{payment_id}</code></pre>
+
+        <h2>Error Handling</h2>
+        <p>The API uses standard HTTP status codes. All error responses include a JSON body with <code>error</code> and <code>message</code> fields.</p>
+        <ul>
+            <li><strong>400</strong> - Bad Request: Invalid parameters</li>
+            <li><strong>401</strong> - Unauthorized: Missing or invalid API key</li>
+            <li><strong>404</strong> - Not Found: Resource does not exist</li>
+            <li><strong>429</strong> - Too Many Requests: Rate limit exceeded</li>
+            <li><strong>500</strong> - Internal Server Error</li>
+        </ul>
+
+        <h2>Rate Limits</h2>
+        <p>API requests are limited to 100 requests per minute per API key. Exceeding this limit will result in a 429 response.</p>
+    </main>
+
+    <footer>
+        <p>Copyright 2024 Platform Team</p>
+    </footer>
+</body>
+</html>

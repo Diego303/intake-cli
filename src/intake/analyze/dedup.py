@@ -38,12 +38,8 @@ def deduplicate(result: AnalysisResult) -> int:
     fr_before = len(result.functional_requirements)
     nfr_before = len(result.non_functional_requirements)
 
-    result.functional_requirements = _deduplicate_list(
-        result.functional_requirements
-    )
-    result.non_functional_requirements = _deduplicate_list(
-        result.non_functional_requirements
-    )
+    result.functional_requirements = _deduplicate_list(result.functional_requirements)
+    result.non_functional_requirements = _deduplicate_list(result.non_functional_requirements)
 
     removed = (fr_before - len(result.functional_requirements)) + (
         nfr_before - len(result.non_functional_requirements)

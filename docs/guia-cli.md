@@ -1,6 +1,6 @@
 # Guia CLI
 
-intake proporciona 8 comandos. Todos siguen el patron:
+intake proporciona 13 comandos y subcomandos. Todos siguen el patron:
 
 ```bash
 intake <comando> [argumentos] [opciones]
@@ -33,7 +33,8 @@ intake init <DESCRIPCION> -s <fuente> [opciones]
 
 | Flag | Corto | Tipo | Default | Requerido | Descripcion |
 |------|-------|------|---------|-----------|-------------|
-| `--source` | `-s` | texto | — | Si | Fuente de requisitos (repetible). Path a archivo o `-` para stdin. |
+| `--source` | `-s` | texto | — | Si | Fuente de requisitos (repetible). Path a archivo, URL, o `-` para stdin. |
+| `--mode` | | opcion | auto | No | Modo de generacion: `quick`, `standard`, `enterprise`. Si no se especifica, se auto-clasifica. |
 | `--model` | `-m` | texto | config o `claude-sonnet-4` | No | Modelo LLM a usar para el analisis. |
 | `--lang` | `-l` | texto | config o `en` | No | Idioma del contenido generado en la spec. |
 | `--project-dir` | `-p` | path | `.` | No | Directorio del proyecto existente (para auto-deteccion del stack). |
@@ -63,6 +64,24 @@ intake init "Microservicio" -s reqs.md --stack python,fastapi -f architect
 # Spec en espanol
 intake init "Carrito de compras" -s historias.md --lang es
 
+# Modo rapido (solo context.md + tasks.md)
+intake init "Fix login bug" -s notas.txt --mode quick
+
+# Modo enterprise (todos los archivos + riesgos detallados)
+intake init "Sistema critico" -s reqs.yaml --mode enterprise
+
+# Desde una URL
+intake init "API review" -s https://wiki.company.com/rfc/auth
+
+# Desde un export de Slack
+intake init "Decisiones de sprint" -s slack_export.json
+
+# Desde GitHub Issues
+intake init "Bug fixes" -s issues.json
+
+# URI de esquema (preparacion para conectores futuros)
+# intake init "Feature" -s jira://PROJ-123  # muestra warning "connector not available yet"
+
 # Dry run para ver que haria
 intake init "Prototipo" -s ideas.txt --dry-run
 
@@ -75,10 +94,20 @@ cat requisitos.txt | intake init "Feature X" -s -
 1. Carga la configuracion (preset + `.intake.yaml` + flags CLI)
 2. Auto-detecta el stack tecnologico del proyecto (si no se especifica `--stack`)
 3. Slugifica la descripcion para el nombre del directorio
-4. **Fase 1 — Ingest**: parsea todas las fuentes via el registry
-5. **Fase 2 — Analyze**: extraccion LLM, deduplicacion, validacion, riesgos, diseno
-6. **Fase 3 — Generate**: renderiza 6 templates + `spec.lock.yaml`
-7. **Fase 5 — Export**: exporta al formato elegido (si se especifico `--format`)
+4. **Resolucion de fuentes**: cada fuente se resuelve via `parse_source()`:
+   - Archivos locales → se parsean con el registry
+   - URLs (`http://`, `https://`) → se procesan con `UrlParser`
+   - URIs de esquema (`jira://`, `confluence://`, `github://`) → warning "connector not available yet"
+   - Stdin (`-`) → se lee como texto plano
+   - Texto libre → se trata como plaintext
+5. **Clasificacion de complejidad**: si no se especifica `--mode`, se auto-clasifica:
+   - `quick`: <500 palabras, 1 fuente, sin estructura
+   - `standard`: caso por defecto
+   - `enterprise`: 4+ fuentes O >5000 palabras
+6. **Fase 1 — Ingest**: parsea todas las fuentes via el registry
+7. **Fase 2 — Analyze**: extraccion LLM, deduplicacion, validacion, riesgos, diseno
+8. **Fase 3 — Generate**: renderiza archivos segun el modo (quick: 2, standard/enterprise: 6) + `spec.lock.yaml`
+9. **Fase 5 — Export**: exporta al formato elegido (si se especifico `--format`)
 
 ---
 
@@ -357,6 +386,132 @@ intake doctor -v
 
 ---
 
+## intake plugins list
+
+Lista todos los plugins descubiertos (parsers, exporters, connectors).
+
+```bash
+intake plugins list [opciones]
+```
+
+### Opciones
+
+| Flag | Corto | Tipo | Default | Descripcion |
+|------|-------|------|---------|-------------|
+| `--verbose` | `-v` | flag | false | Mostrar columnas adicionales: modulo y errores de carga. |
+
+### Que muestra
+
+Una tabla con:
+
+| Columna | Descripcion |
+|---------|-------------|
+| Name | Nombre del plugin |
+| Group | Grupo: parsers, exporters, connectors |
+| Version | Version del paquete que lo provee |
+| V2 | Si implementa el protocolo V2 |
+| Built-in | Si es un plugin built-in de intake |
+
+Con `-v` se agregan columnas de modulo y errores de carga.
+
+### Ejemplo
+
+```bash
+# Lista basica
+intake plugins list
+
+# Con detalles
+intake plugins list -v
+```
+
+---
+
+## intake plugins check
+
+Valida la compatibilidad de todos los plugins descubiertos.
+
+```bash
+intake plugins check
+```
+
+Ejecuta `check_compatibility()` en cada plugin y reporta OK o FAIL con detalles del error.
+
+---
+
+## intake task list
+
+Lista las tareas de una spec con su estado actual.
+
+```bash
+intake task list <SPEC_DIR> [opciones]
+```
+
+### Argumento
+
+| Argumento | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `SPEC_DIR` | path | Si | Directorio de la spec. |
+
+### Opciones
+
+| Flag | Tipo | Default | Descripcion |
+|------|------|---------|-------------|
+| `--status` | opcion | todos | Filtrar por estado (repetible): `pending`, `in_progress`, `done`, `blocked`. |
+
+### Que muestra
+
+- Tabla con ID, titulo y estado de cada tarea
+- Resumen de progreso: total, pending, in_progress, done, blocked
+
+### Ejemplo
+
+```bash
+# Listar todas las tareas
+intake task list specs/mi-feature/
+
+# Solo tareas pendientes y en progreso
+intake task list specs/mi-feature/ --status pending --status in_progress
+```
+
+---
+
+## intake task update
+
+Actualiza el estado de una tarea en `tasks.md`.
+
+```bash
+intake task update <SPEC_DIR> <TASK_ID> <STATUS> [opciones]
+```
+
+### Argumentos
+
+| Argumento | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `SPEC_DIR` | path | Si | Directorio de la spec. |
+| `TASK_ID` | entero | Si | ID de la tarea a actualizar. |
+| `STATUS` | opcion | Si | Nuevo estado: `pending`, `in_progress`, `done`, `blocked`. |
+
+### Opciones
+
+| Flag | Tipo | Default | Descripcion |
+|------|------|---------|-------------|
+| `--note` | texto | ninguno | Nota o anotacion para agregar a la actualizacion. |
+
+### Ejemplo
+
+```bash
+# Marcar tarea 1 como completada
+intake task update specs/mi-feature/ 1 done
+
+# Marcar como en progreso con nota
+intake task update specs/mi-feature/ 2 in_progress --note "Iniciando implementacion"
+
+# Marcar como bloqueada
+intake task update specs/mi-feature/ 3 blocked --note "Esperando API de terceros"
+```
+
+---
+
 ## Opciones globales
 
 | Flag | Descripcion |
@@ -365,7 +520,7 @@ intake doctor -v
 | `--help` | Muestra la ayuda del comando |
 
 ```bash
-intake --version    # intake, version 0.1.0
+intake --version    # intake, version 0.2.0
 intake --help       # Ayuda general
 intake init --help  # Ayuda del comando init
 ```
