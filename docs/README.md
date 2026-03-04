@@ -42,14 +42,39 @@ pip install -e ".[dev]"
 
 | Documento | Descripcion |
 |-----------|-------------|
+**Core:**
+
+| Documento | Descripcion |
+|-----------|-------------|
 | [Arquitectura](arquitectura.md) | Arquitectura del sistema, modulos, flujo de datos y decisiones de diseno |
-| [Guia CLI](guia-cli.md) | Referencia completa de los 13 comandos/subcomandos con todas sus opciones |
+| [Guia CLI](guia-cli.md) | Referencia completa de los 15 comandos/subcomandos con todas sus opciones |
 | [Configuracion](configuracion.md) | Todas las opciones de `.intake.yaml`, presets y variables de entorno |
-| [Pipeline](pipeline.md) | Como funciona el pipeline de 5 fases en detalle |
-| [Formatos de entrada](formatos-entrada.md) | Los 11 parsers soportados, que extraen y como se auto-detectan |
+
+**Pipeline:**
+
+| Documento | Descripcion |
+|-----------|-------------|
+| [Pipeline](pipeline.md) | Como funciona el pipeline de 5 fases + feedback loop en detalle |
+| [Formatos de entrada](formatos-entrada.md) | Los 11 parsers + 3 conectores API, que extraen y como se auto-detectan |
+| [Conectores](conectores.md) | Conectores API directos: Jira, Confluence, GitHub |
 | [Plugins](plugins.md) | Sistema de plugins: protocolos, descubrimiento, hooks y como crear plugins |
 | [Verificacion](verificacion.md) | Motor de checks de aceptacion, reporters y CI/CD |
-| [Exportacion](exportacion.md) | Formatos de exportacion para agentes IA |
+| [Exportacion](exportacion.md) | 6 formatos de exportacion para agentes IA |
+| [Feedback](feedback.md) | Feedback loop: analisis de fallos y enmiendas a la spec |
+
+**Operaciones y enterprise:**
+
+| Documento | Descripcion |
+|-----------|-------------|
+| [Despliegue](despliegue.md) | Docker, pre-commit hooks y patrones de despliegue para equipos |
+| [Integracion CI/CD](integracion-cicd.md) | GitHub Actions, GitLab CI, Jenkins, Azure DevOps |
+| [Seguridad](seguridad.md) | Modelo de amenazas, gestion de secretos, redaccion, cumplimiento |
+| [Flujos de trabajo](flujos-trabajo.md) | Patrones para equipos de todos los tamanos: individual a empresa |
+
+**Referencia:**
+
+| Documento | Descripcion |
+|-----------|-------------|
 | [Buenas practicas](buenas-practicas.md) | Tips, patrones recomendados y como sacar el maximo provecho |
 | [Solucion de problemas](solucion-problemas.md) | Errores comunes, diagnostico y FAQ |
 
@@ -77,12 +102,21 @@ intake init "API review" -s https://wiki.company.com/rfc/auth
 intake verify specs/pasarela-de-pagos/ -p .
 
 # 7. Exportar para un agente especifico
-intake export specs/pasarela-de-pagos/ -f architect -o output/
+intake export specs/pasarela-de-pagos/ -f claude-code -o .
+intake export specs/pasarela-de-pagos/ -f cursor -o .
+intake export specs/pasarela-de-pagos/ -f copilot -o .
 
-# 8. Gestionar plugins
+# 8. Desde conectores API directos (requiere config)
+intake init "Sprint tasks" -s jira://PROJ/sprint/42
+intake init "RFC review" -s confluence://ENG/Architecture-RFC
+
+# 9. Feedback loop: analizar fallos y sugerir correcciones
+intake feedback specs/pasarela-de-pagos/ -p .
+
+# 10. Gestionar plugins
 intake plugins list
 
-# 9. Seguimiento de tareas
+# 11. Seguimiento de tareas
 intake task list specs/pasarela-de-pagos/
 intake task update specs/pasarela-de-pagos/ 1 done --note "Implementado"
 ```

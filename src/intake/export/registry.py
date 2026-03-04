@@ -6,7 +6,7 @@ Supports both V1 exporters (manual registration) and V2 exporters
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -17,24 +17,30 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
+# V1 exporters implement Exporter (returns list[str]).
+# V2 exporters implement ExporterPlugin (returns ExportResult).
+# The registry accepts both via the AnyExporter alias.
+AnyExporter = Exporter | Any
+
 
 class ExporterRegistry:
     """Registry for format-based exporter dispatch.
 
     Maps format names to exporter instances. Can be backed by a
     ``PluginRegistry`` for automatic exporter discovery.
+    Supports both V1 ``Exporter`` and V2 ``ExporterPlugin`` instances.
     """
 
     def __init__(self, plugin_registry: PluginRegistry | None = None) -> None:
-        self._exporters: dict[str, Exporter] = {}
+        self._exporters: dict[str, AnyExporter] = {}
         self._plugin_registry = plugin_registry
 
-    def register(self, format_name: str, exporter: Exporter) -> None:
+    def register(self, format_name: str, exporter: AnyExporter) -> None:
         """Register an exporter for a format.
 
         Args:
             format_name: Format identifier (e.g., "architect", "generic").
-            exporter: Exporter instance.
+            exporter: Exporter instance (V1 or V2).
         """
         self._exporters[format_name] = exporter
         logger.debug("exporter_registered", format=format_name)
@@ -54,14 +60,14 @@ class ExporterRegistry:
         count = 0
         for name, exporter_instance in exporters.items():
             if name not in self._exporters and exporter_instance is not None:
-                self._exporters[name] = exporter_instance  # type: ignore[assignment]
+                self._exporters[name] = exporter_instance
                 count += 1
                 logger.debug("exporter_discovered", name=name)
 
         logger.info("exporters_discovered", count=count)
         return count
 
-    def get(self, format_name: str) -> Exporter:
+    def get(self, format_name: str) -> AnyExporter:
         """Get the exporter for a format.
 
         Args:
@@ -126,11 +132,19 @@ def create_default_registry(use_plugins: bool = True) -> ExporterRegistry:
 def _create_manual_registry() -> ExporterRegistry:
     """Create a registry with hardcoded exporter registrations."""
     from intake.export.architect import ArchitectExporter
+    from intake.export.claude_code import ClaudeCodeExporter
+    from intake.export.copilot import CopilotExporter
+    from intake.export.cursor import CursorExporter
     from intake.export.generic import GenericExporter
+    from intake.export.kiro import KiroExporter
 
     registry = ExporterRegistry()
     registry.register("architect", ArchitectExporter())
     registry.register("generic", GenericExporter())
+    registry.register("claude-code", ClaudeCodeExporter())
+    registry.register("cursor", CursorExporter())
+    registry.register("kiro", KiroExporter())
+    registry.register("copilot", CopilotExporter())
 
     logger.info(
         "default_exporter_registry_created",

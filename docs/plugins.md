@@ -14,7 +14,7 @@ intake usa `importlib.metadata.entry_points()` para descubrir plugins instalados
 |-------|------|---------|
 | `intake.parsers` | Parsers de formatos de entrada | `markdown = "intake.ingest.markdown:MarkdownParser"` |
 | `intake.exporters` | Exporters de formatos de salida | `architect = "intake.export.architect:ArchitectExporter"` |
-| `intake.connectors` | Conectores API directos | (vacio — preparacion para Fase 2) |
+| `intake.connectors` | Conectores API directos | `jira = "intake.connectors.jira_api:JiraConnector"` |
 
 Cuando intake carga un registry (`ParserRegistry`, `ExporterRegistry`), intenta descubrir plugins primero. Si el descubrimiento falla, cae back a registro manual (hardcoded).
 
@@ -35,7 +35,7 @@ intake plugins check
 
 ## Plugins built-in
 
-intake incluye 13 plugins built-in registrados como entry_points en `pyproject.toml`:
+intake incluye 20 plugins built-in registrados como entry_points en `pyproject.toml`:
 
 ### Parsers (11)
 
@@ -53,12 +53,24 @@ intake incluye 13 plugins built-in registrados como entry_points en `pyproject.t
 | `slack` | `intake.ingest.slack:SlackParser` | `.json` (auto-detectado) |
 | `github_issues` | `intake.ingest.github_issues:GithubIssuesParser` | `.json` (auto-detectado) |
 
-### Exporters (2)
+### Exporters (6)
 
-| Nombre | Modulo | Formato |
-|--------|--------|---------|
-| `architect` | `intake.export.architect:ArchitectExporter` | `pipeline.yaml` + spec |
-| `generic` | `intake.export.generic:GenericExporter` | `SPEC.md` + `verify.sh` + spec |
+| Nombre | Modulo | Formato | Protocolo |
+|--------|--------|---------|-----------|
+| `architect` | `intake.export.architect:ArchitectExporter` | `pipeline.yaml` + spec | V1 |
+| `generic` | `intake.export.generic:GenericExporter` | `SPEC.md` + `verify.sh` + spec | V1 |
+| `claude-code` | `intake.export.claude_code:ClaudeCodeExporter` | `CLAUDE.md` + `.intake/tasks/` + `verify.sh` | V2 |
+| `cursor` | `intake.export.cursor:CursorExporter` | `.cursor/rules/intake-spec.mdc` | V2 |
+| `kiro` | `intake.export.kiro:KiroExporter` | `requirements.md` + `design.md` + `tasks.md` (formato Kiro) | V2 |
+| `copilot` | `intake.export.copilot:CopilotExporter` | `.github/copilot-instructions.md` | V2 |
+
+### Connectors (3)
+
+| Nombre | Modulo | URIs |
+|--------|--------|------|
+| `jira` | `intake.connectors.jira_api:JiraConnector` | `jira://` |
+| `confluence` | `intake.connectors.confluence_api:ConfluenceConnector` | `confluence://` |
+| `github` | `intake.connectors.github_api:GithubConnector` | `github://` |
 
 ---
 

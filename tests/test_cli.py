@@ -18,7 +18,7 @@ class TestCLI:
         runner = CliRunner()
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
-        assert "0.2.0" in result.output
+        assert "0.3.0" in result.output
 
     def test_help(self) -> None:
         runner = CliRunner()
@@ -480,3 +480,140 @@ class TestInitModeOption:
         # that will fail at LLM phase but we just need to see the warning
         # Actually, dry-run exits before parsing, so let's just check the option works
         assert result.exit_code == 0
+
+
+class TestFeedbackCommand:
+    def test_feedback_help(self) -> None:
+        """feedback --help shows usage."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["feedback", "--help"])
+        assert result.exit_code == 0
+        assert "feedback" in result.output.lower()
+        assert "--verify-report" in result.output
+        assert "--apply" in result.output
+        assert "--agent-format" in result.output
+
+    def test_feedback_missing_spec_dir(self) -> None:
+        """feedback errors when spec_dir doesn't exist."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["feedback", "nonexistent"])
+        assert result.exit_code == 2
+
+    def test_feedback_all_passed(self, tmp_path: Path) -> None:
+        """feedback with all-passing report exits with green message."""
+        import json
+
+        spec_dir = tmp_path / "spec"
+        spec_dir.mkdir()
+        checks = [{"id": "t1", "name": "Test", "type": "command", "command": "true"}]
+        (spec_dir / "acceptance.yaml").write_text(yaml.dump({"checks": checks}))
+
+        report = {
+            "spec_name": "test",
+            "total": 1,
+            "passed": 1,
+            "failed": 0,
+            "checks": [{"id": "t1", "name": "Test", "status": "pass", "error": ""}],
+        }
+        report_file = tmp_path / "report.json"
+        report_file.write_text(json.dumps(report))
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["feedback", str(spec_dir), "-r", str(report_file)],
+        )
+        assert result.exit_code == 0
+        assert "All checks passed" in result.output
+
+    def test_feedback_invalid_report_json(self, tmp_path: Path) -> None:
+        """feedback with invalid JSON report shows error."""
+        spec_dir = tmp_path / "spec"
+        spec_dir.mkdir()
+        (spec_dir / "acceptance.yaml").write_text(yaml.dump({"checks": []}))
+
+        report_file = tmp_path / "report.json"
+        report_file.write_text("not valid json!!!")
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["feedback", str(spec_dir), "-r", str(report_file)],
+        )
+        assert result.exit_code == 2
+
+    def test_feedback_export_format_choices(self) -> None:
+        """feedback accepts generic, claude-code, cursor formats."""
+        runner = CliRunner()
+        # Invalid format should fail
+        result = runner.invoke(
+            main,
+            ["feedback", ".", "--agent-format", "invalid-format"],
+        )
+        assert result.exit_code == 2
+
+
+class TestExportNewFormats:
+    def _make_spec_dir(self, tmp_path: Path) -> Path:
+        """Helper to create a minimal spec directory."""
+        spec_dir = tmp_path / "spec"
+        spec_dir.mkdir()
+        (spec_dir / "context.md").write_text("# Context\n")
+        (spec_dir / "requirements.md").write_text("# Requirements\n")
+        (spec_dir / "design.md").write_text("# Design\n")
+        (spec_dir / "tasks.md").write_text("# Tasks\n")
+        (spec_dir / "acceptance.yaml").write_text(yaml.dump({"checks": []}))
+        return spec_dir
+
+    def test_export_claude_code(self, tmp_path: Path) -> None:
+        """export -f claude-code creates CLAUDE.md."""
+        spec_dir = self._make_spec_dir(tmp_path)
+        output_dir = tmp_path / "out"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["export", str(spec_dir), "-f", "claude-code", "-o", str(output_dir)],
+        )
+        assert result.exit_code == 0
+        assert (output_dir / "CLAUDE.md").exists()
+
+    def test_export_cursor(self, tmp_path: Path) -> None:
+        """export -f cursor creates .cursor/rules/intake-spec.mdc."""
+        spec_dir = self._make_spec_dir(tmp_path)
+        output_dir = tmp_path / "out"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["export", str(spec_dir), "-f", "cursor", "-o", str(output_dir)],
+        )
+        assert result.exit_code == 0
+        assert (output_dir / ".cursor" / "rules" / "intake-spec.mdc").exists()
+
+    def test_export_kiro(self, tmp_path: Path) -> None:
+        """export -f kiro creates requirements.md, design.md, tasks.md."""
+        spec_dir = self._make_spec_dir(tmp_path)
+        output_dir = tmp_path / "out"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["export", str(spec_dir), "-f", "kiro", "-o", str(output_dir)],
+        )
+        assert result.exit_code == 0
+        assert (output_dir / "requirements.md").exists()
+        assert (output_dir / "tasks.md").exists()
+
+    def test_export_copilot(self, tmp_path: Path) -> None:
+        """export -f copilot creates .github/copilot-instructions.md."""
+        spec_dir = self._make_spec_dir(tmp_path)
+        output_dir = tmp_path / "out"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["export", str(spec_dir), "-f", "copilot", "-o", str(output_dir)],
+        )
+        assert result.exit_code == 0
+        assert (output_dir / ".github" / "copilot-instructions.md").exists()

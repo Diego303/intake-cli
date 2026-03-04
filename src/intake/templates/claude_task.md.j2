@@ -1,0 +1,22 @@
+# Task {{ task.id }}: {{ task.title }}
+
+**Status:** {{ task.status }}
+
+## Description
+
+{{ task.description }}
+
+{% if task.checks %}
+## Verification
+
+Run these checks to verify this task:
+{% for check in task.checks %}
+- `{{ check }}`
+{% endfor %}
+{% endif %}
+
+{% if context_summary %}
+## Context
+
+{{ context_summary }}
+{% endif %}

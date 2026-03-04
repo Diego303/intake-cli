@@ -61,23 +61,46 @@ verification:
 
 # Configuracion de exportacion
 export:
-  default_format: generic         # architect | claude-code | cursor | kiro | generic
+  default_format: generic         # architect | claude-code | cursor | kiro | copilot | generic
   architect_include_guardrails: true
   architect_pipeline_template: standard
   claude_code_generate_claude_md: true
 
-# Conectores (preparacion para Fase 2)
+# Conectores API directos
 connectors:
   jira:
-    url: ""                       # URL base de Jira
-    email: ""                     # Email de autenticacion
-    api_token_env: JIRA_API_TOKEN # Variable de entorno con el API token
+    url: "https://company.atlassian.net"
+    auth_type: token              # token | oauth | api_key
+    token_env: JIRA_API_TOKEN     # Variable de entorno con el API token
+    email_env: JIRA_EMAIL         # Variable de entorno con el email
+    default_project: ""           # Proyecto por defecto (ej: "PROJ")
+    include_comments: true        # Incluir comentarios de issues
+    max_comments: 5               # Max comentarios por issue
+    fields:                       # Campos a recuperar
+      - summary
+      - description
+      - labels
+      - priority
+      - status
+      - issuelinks
+      - comment
   confluence:
-    url: ""                       # URL base de Confluence
-    email: ""                     # Email de autenticacion
-    api_token_env: CONFLUENCE_API_TOKEN  # Variable de entorno con el API token
+    url: "https://company.atlassian.net/wiki"
+    auth_type: token              # token | oauth
+    token_env: CONFLUENCE_API_TOKEN
+    email_env: CONFLUENCE_EMAIL
+    default_space: ""             # Space por defecto (ej: "ENG")
+    include_child_pages: false    # Incluir paginas hijas
+    max_depth: 1                  # Profundidad maxima de paginas hijas
   github:
-    token_env: GITHUB_TOKEN       # Variable de entorno con el token
+    token_env: GITHUB_TOKEN       # Variable de entorno con el PAT
+    default_repo: ""              # Repo por defecto (ej: "org/repo")
+
+# Feedback loop
+feedback:
+  auto_amend_spec: false          # Aplicar enmiendas automaticamente
+  max_suggestions: 10             # Max sugerencias por analisis
+  include_code_snippets: true     # Incluir codigo en sugerencias
 
 # Seguridad
 security:
@@ -197,26 +220,58 @@ Ademas inspecciona el contenido de `pyproject.toml` y `package.json` para detect
 
 | Campo | Tipo | Default | Descripcion |
 |-------|------|---------|-------------|
-| `default_format` | string | `generic` | Formato de exportacion por defecto. Opciones: `architect`, `claude-code`, `cursor`, `kiro`, `generic`. |
+| `default_format` | string | `generic` | Formato de exportacion por defecto. Opciones: `architect`, `claude-code`, `cursor`, `kiro`, `copilot`, `generic`. |
 | `architect_include_guardrails` | bool | `true` | Incluir guardrails en pipelines de architect. |
 | `architect_pipeline_template` | string | `standard` | Template de pipeline para architect. |
 | `claude_code_generate_claude_md` | bool | `true` | Generar CLAUDE.md al exportar para Claude Code. |
+| `claude_code_task_dir` | string | `.intake/tasks` | Directorio para archivos de tarea de Claude Code. |
+| `cursor_rules_dir` | string | `.cursor/rules` | Directorio para reglas de Cursor. |
 
-### Seccion `connectors` (preparacion)
+### Seccion `connectors`
 
-Configuracion para conectores API directos. Los conectores aun no estan implementados (llegaran en una version futura), pero la infraestructura de configuracion ya esta lista.
+Configuracion para conectores API directos. Permiten usar URIs como `jira://PROJ-123` directamente en `-s`. Ver [Conectores](conectores.md) para detalles de uso.
+
+**Jira:**
 
 | Campo | Tipo | Default | Descripcion |
 |-------|------|---------|-------------|
-| `jira.url` | string | `""` | URL base de la instancia Jira. |
-| `jira.email` | string | `""` | Email para autenticacion Jira. |
-| `jira.api_token_env` | string | `"JIRA_API_TOKEN"` | Variable de entorno con el API token de Jira. |
-| `confluence.url` | string | `""` | URL base de la instancia Confluence. |
-| `confluence.email` | string | `""` | Email para autenticacion Confluence. |
-| `confluence.api_token_env` | string | `"CONFLUENCE_API_TOKEN"` | Variable de entorno con el API token de Confluence. |
-| `github.token_env` | string | `"GITHUB_TOKEN"` | Variable de entorno con el token de GitHub. |
+| `jira.url` | string | `""` | URL base de la instancia Jira. Requerido para usar `jira://`. |
+| `jira.auth_type` | string | `"token"` | Tipo de autenticacion: `token`, `oauth`, `api_key`. |
+| `jira.token_env` | string | `"JIRA_API_TOKEN"` | Variable de entorno con el API token. |
+| `jira.email_env` | string | `"JIRA_EMAIL"` | Variable de entorno con el email de autenticacion. |
+| `jira.default_project` | string | `""` | Proyecto por defecto. |
+| `jira.include_comments` | bool | `true` | Incluir comentarios de issues. |
+| `jira.max_comments` | int | `5` | Maximo de comentarios por issue. |
+| `jira.fields` | list[string] | ver ejemplo | Campos de Jira a recuperar. |
 
-**Nota:** Actualmente, al usar URIs como `jira://PROJ-123` en `-s`, intake muestra un warning indicando que el conector no esta disponible. Mientras tanto, exporta los datos desde la interfaz web y usa archivos JSON.
+**Confluence:**
+
+| Campo | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `confluence.url` | string | `""` | URL base de la instancia Confluence. Requerido para usar `confluence://`. |
+| `confluence.auth_type` | string | `"token"` | Tipo de autenticacion: `token`, `oauth`. |
+| `confluence.token_env` | string | `"CONFLUENCE_API_TOKEN"` | Variable de entorno con el API token. |
+| `confluence.email_env` | string | `"CONFLUENCE_EMAIL"` | Variable de entorno con el email. |
+| `confluence.default_space` | string | `""` | Space por defecto. |
+| `confluence.include_child_pages` | bool | `false` | Incluir paginas hijas recursivamente. |
+| `confluence.max_depth` | int | `1` | Profundidad maxima de paginas hijas. |
+
+**GitHub:**
+
+| Campo | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `github.token_env` | string | `"GITHUB_TOKEN"` | Variable de entorno con el Personal Access Token. |
+| `github.default_repo` | string | `""` | Repositorio por defecto (ej: `org/repo`). |
+
+### Seccion `feedback`
+
+Configuracion del feedback loop. Ver [Feedback](feedback.md) para detalles.
+
+| Campo | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `feedback.auto_amend_spec` | bool | `false` | Aplicar enmiendas a la spec automaticamente tras el analisis. |
+| `feedback.max_suggestions` | int | `10` | Maximo de sugerencias a generar por analisis. |
+| `feedback.include_code_snippets` | bool | `true` | Incluir fragmentos de codigo en las sugerencias. |
 
 ### Seccion `security`
 
@@ -259,14 +314,12 @@ intake init "Mi feature" -s reqs.md --preset minimal
 
 ## Variables de entorno
 
-intake busca estas variables de entorno para la autenticacion con proveedores LLM:
+### Proveedores LLM
 
 | Variable | Proveedor | Ejemplo |
 |----------|-----------|---------|
 | `ANTHROPIC_API_KEY` | Anthropic (Claude) | `sk-ant-api03-...` |
 | `OPENAI_API_KEY` | OpenAI (GPT) | `sk-...` |
-
-Configura la variable segun tu proveedor:
 
 ```bash
 # Anthropic
@@ -283,6 +336,29 @@ llm:
   model: gemini/gemini-pro
   api_key_env: GEMINI_API_KEY
 ```
+
+### Conectores API
+
+| Variable | Conector | Proposito |
+|----------|----------|-----------|
+| `JIRA_API_TOKEN` | Jira | API token de Atlassian |
+| `JIRA_EMAIL` | Jira | Email de autenticacion |
+| `CONFLUENCE_API_TOKEN` | Confluence | API token de Atlassian |
+| `CONFLUENCE_EMAIL` | Confluence | Email de autenticacion |
+| `GITHUB_TOKEN` | GitHub | Personal Access Token |
+
+```bash
+# Jira / Confluence
+export JIRA_API_TOKEN=tu-api-token
+export JIRA_EMAIL=dev@company.com
+export CONFLUENCE_API_TOKEN=tu-api-token
+export CONFLUENCE_EMAIL=dev@company.com
+
+# GitHub
+export GITHUB_TOKEN=ghp_tu-personal-access-token
+```
+
+Los nombres de las variables son configurables via `connectors.*.token_env` y `connectors.*.email_env` en `.intake.yaml`.
 
 ---
 

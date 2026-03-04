@@ -1,6 +1,6 @@
 [project]
 name = "intake-ai-cli"
-version = "0.2.0"
+version = "0.3.0"
 description = "From requirements in any format to verified implementation"
 readme = "README.md"
 license = {text = "MIT"}
@@ -86,8 +86,15 @@ github_issues = "intake.ingest.github_issues:GithubIssuesParser"
 [project.entry-points."intake.exporters"]
 architect = "intake.export.architect:ArchitectExporter"
 generic = "intake.export.generic:GenericExporter"
+claude-code = "intake.export.claude_code:ClaudeCodeExporter"
+cursor = "intake.export.cursor:CursorExporter"
+kiro = "intake.export.kiro:KiroExporter"
+copilot = "intake.export.copilot:CopilotExporter"
 
 [project.entry-points."intake.connectors"]
+jira = "intake.connectors.jira_api:JiraConnector"
+confluence = "intake.connectors.confluence_api:ConfluenceConnector"
+github = "intake.connectors.github_api:GithubConnector"
 
 [build-system]
 requires = ["hatchling"]

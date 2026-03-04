@@ -1,0 +1,44 @@
+{
+  "spec_name": "test-spec",
+  "project_dir": ".",
+  "total": 4,
+  "passed": 2,
+  "failed": 2,
+  "exit_code": 1,
+  "checks": [
+    {
+      "id": "tests",
+      "name": "Run unit tests",
+      "type": "command",
+      "command": "pytest tests/ -q",
+      "status": "pass",
+      "duration_ms": 1200
+    },
+    {
+      "id": "lint",
+      "name": "Lint check",
+      "type": "command",
+      "command": "ruff check .",
+      "status": "pass",
+      "duration_ms": 500
+    },
+    {
+      "id": "types",
+      "name": "Type checking",
+      "type": "command",
+      "command": "mypy src/ --strict",
+      "status": "fail",
+      "duration_ms": 3000,
+      "error": "Found 5 errors in 2 files"
+    },
+    {
+      "id": "api-health",
+      "name": "API health check",
+      "type": "command",
+      "command": "curl -sf http://localhost:8000/health",
+      "status": "fail",
+      "duration_ms": 5000,
+      "error": "Connection refused"
+    }
+  ]
+}

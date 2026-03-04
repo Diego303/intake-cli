@@ -33,7 +33,7 @@ Fuente --> parse_source() --> Registry --> Detecta formato --> Selecciona parser
 1. **Resolucion de fuente**: `parse_source()` determina el tipo de fuente:
    - Archivos locales → pasan al registry
    - URLs HTTP/HTTPS → se procesan con `UrlParser`
-   - URIs de esquema (`jira://`, `confluence://`, `github://`) → reservados para conectores futuros
+   - URIs de esquema (`jira://`, `confluence://`, `github://`) → se resuelven via conectores API (descargan a archivos temporales)
    - Stdin (`-`) → se lee como plaintext
    - Texto libre → se trata como plaintext
 2. El **Registry** recibe la ruta del archivo
@@ -288,8 +288,12 @@ Toma los archivos spec generados y los transforma en un formato listo para un ag
 
 | Formato | Que genera | Mejor para |
 |---------|-----------|-----------|
-| `architect` | `pipeline.yaml` + copia de spec | Agentes basados en architect |
+| `architect` | `pipeline.yaml` + copia de spec | Agentes basados en Architect |
 | `generic` | `SPEC.md` + `verify.sh` + copia de spec | Cualquier agente / uso manual |
+| `claude-code` | `CLAUDE.md` + `.intake/tasks/` + `verify.sh` | Claude Code |
+| `cursor` | `.cursor/rules/intake-spec.mdc` | Cursor |
+| `kiro` | `requirements.md` + `design.md` + `tasks.md` (formato nativo) | Kiro |
+| `copilot` | `.github/copilot-instructions.md` | GitHub Copilot |
 
 Ver [Exportacion](exportacion.md) para detalles completos.
 
@@ -334,5 +338,62 @@ Ver [Exportacion](exportacion.md) para detalles completos.
                   (pass/fail/skip)       ├── pipeline.yaml  (architect)
                                          ├── SPEC.md        (generic)
                                          ├── verify.sh      (generic)
+                                         ├── CLAUDE.md      (claude-code)
+                                         ├── .cursor/rules/ (cursor)
+                                         ├── .github/       (copilot)
                                          └── spec/          (copia)
+                                                |
+                                         [ FEEDBACK ]  (opcional)
+                                                |
+                                        FeedbackResult
+                                        (sugerencias + enmiendas)
 ```
+
+---
+
+## Feedback Loop (opcional)
+
+**Modulo:** `feedback/`
+**Requiere LLM:** Si (async via `litellm.acompletion`)
+
+### Que hace
+
+Cierra el ciclo entre verificacion e implementacion. Cuando checks fallan, analiza las causas y sugiere correcciones tanto a la implementacion como a la spec.
+
+### Flujo
+
+```
+VerificationReport (checks fallidos)
+         |
+   [ ANALYZE FAILURES ]     (llamada LLM)
+         |
+   FeedbackResult
+   ├── FailureAnalysis[]     (causa raiz + sugerencia por cada fallo)
+   ├── SpecAmendment[]       (enmiendas propuestas a la spec)
+   ├── summary               (resumen general)
+   └── estimated_effort      (small / medium / large)
+         |
+   [ APPLY? ]               (si --apply o auto_amend_spec)
+         |
+   Spec actualizada
+```
+
+### Componentes
+
+| Componente | Que hace |
+|-----------|---------|
+| `FeedbackAnalyzer` | Analiza fallos con LLM, produce `FeedbackResult` |
+| `SuggestionFormatter` | Formatea sugerencias para terminal o agente (generic, claude-code, cursor) |
+| `SpecUpdater` | Preview y aplicacion de enmiendas a los archivos spec |
+
+### Modelo de datos
+
+| Dataclass | Campos principales |
+|-----------|-------------------|
+| `FailureAnalysis` | check_name, root_cause, suggestion, severity, affected_tasks, spec_amendment |
+| `SpecAmendment` | target_file, section, action (add/modify/remove), content |
+| `FeedbackResult` | failures, summary, estimated_effort, total_cost |
+| `AmendmentPreview` | amendment, current_content, proposed_content, applicable, reason |
+| `ApplyResult` | applied, skipped, details |
+
+Ver [Feedback](feedback.md) para documentacion completa.

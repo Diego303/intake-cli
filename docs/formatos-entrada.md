@@ -400,6 +400,81 @@ intake init "API review" -s https://wiki.company.com/rfc/auth
 
 ---
 
+## Conectores API directos
+
+Ademas de archivos locales, intake puede obtener datos directamente de APIs usando URIs de esquema. Los conectores requieren configuracion en `.intake.yaml` y credenciales via variables de entorno.
+
+### Jira
+
+**URIs soportadas:**
+
+| Patron | Que hace |
+|--------|---------|
+| `jira://PROJ-123` | Un solo issue |
+| `jira://PROJ-123,PROJ-124,PROJ-125` | Multiples issues |
+| `jira://PROJ?jql=sprint%20%3D%2042` | Busqueda JQL |
+| `jira://PROJ/sprint/42` | Todos los issues de un sprint |
+
+**Dependencia:** `atlassian-python-api` (instalar con `pip install "intake-ai-cli[connectors]"`)
+
+**Ejemplo:**
+
+```bash
+intake init "Sprint 42 tasks" -s jira://PROJ/sprint/42
+```
+
+Los issues se descargan como JSON temporal y se parsean con `JiraParser`. Los comentarios se incluyen segun `connectors.jira.include_comments`.
+
+### Confluence
+
+**URIs soportadas:**
+
+| Patron | Que hace |
+|--------|---------|
+| `confluence://page/123456789` | Pagina por ID |
+| `confluence://SPACE/Page-Title` | Pagina por space y titulo |
+| `confluence://search?cql=space.key%3DENG` | Busqueda CQL |
+
+**Dependencia:** `atlassian-python-api`
+
+**Ejemplo:**
+
+```bash
+intake init "Architecture RFC" -s confluence://ENG/Architecture-RFC-2025
+```
+
+Las paginas se descargan como HTML temporal y se parsean con `ConfluenceParser`.
+
+### GitHub
+
+**URIs soportadas:**
+
+| Patron | Que hace |
+|--------|---------|
+| `github://org/repo/issues/42` | Un solo issue |
+| `github://org/repo/issues/42,43,44` | Multiples issues |
+| `github://org/repo/issues?labels=bug&state=open` | Issues filtrados por labels, estado, milestone |
+
+**Dependencia:** `PyGithub` (instalar con `pip install "intake-ai-cli[connectors]"`)
+
+**Ejemplo:**
+
+```bash
+intake init "Bug triage" -s github://org/repo/issues?labels=bug&state=open
+```
+
+Los issues se descargan como JSON temporal y se parsean con `GithubIssuesParser`. Maximo 50 issues por consulta, 10 comentarios por issue.
+
+### Configuracion de conectores
+
+Ver [Configuracion > Conectores](configuracion.md#seccion-connectors) para los campos de configuracion completos. Los conectores necesitan:
+
+1. URL base de la instancia (Jira/Confluence) o token (GitHub)
+2. Credenciales via variables de entorno
+3. `intake doctor` verifica que las credenciales estan configuradas
+
+---
+
 ## Limitaciones generales
 
 | Limite | Valor | Descripcion |

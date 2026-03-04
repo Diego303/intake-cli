@@ -1,6 +1,6 @@
 # Guia CLI
 
-intake proporciona 13 comandos y subcomandos. Todos siguen el patron:
+intake proporciona 15 comandos y subcomandos. Todos siguen el patron:
 
 ```bash
 intake <comando> [argumentos] [opciones]
@@ -40,7 +40,7 @@ intake init <DESCRIPCION> -s <fuente> [opciones]
 | `--project-dir` | `-p` | path | `.` | No | Directorio del proyecto existente (para auto-deteccion del stack). |
 | `--stack` | | texto | auto-detectado | No | Stack tecnologico. Ej: `python,fastapi,postgresql`. |
 | `--output` | `-o` | path | `./specs` | No | Directorio de salida para la spec. |
-| `--format` | `-f` | opcion | config o ninguno | No | Formato de exportacion: `architect`, `claude-code`, `cursor`, `kiro`, `generic`. |
+| `--format` | `-f` | opcion | config o ninguno | No | Formato de exportacion: `architect`, `claude-code`, `cursor`, `kiro`, `copilot`, `generic`. |
 | `--preset` | | opcion | ninguno | No | Preset de configuracion: `minimal`, `standard`, `enterprise`. |
 | `--interactive` | `-i` | flag | false | No | Modo interactivo: pregunta antes de generar cada seccion. |
 | `--dry-run` | | flag | false | No | Muestra que haria sin generar archivos. |
@@ -79,8 +79,10 @@ intake init "Decisiones de sprint" -s slack_export.json
 # Desde GitHub Issues
 intake init "Bug fixes" -s issues.json
 
-# URI de esquema (preparacion para conectores futuros)
-# intake init "Feature" -s jira://PROJ-123  # muestra warning "connector not available yet"
+# Desde conectores API directos (requiere config en .intake.yaml)
+intake init "Sprint tasks" -s jira://PROJ-123
+intake init "Spec review" -s confluence://SPACE/Page-Title
+intake init "Bug triage" -s github://org/repo/issues?labels=bug&state=open
 
 # Dry run para ver que haria
 intake init "Prototipo" -s ideas.txt --dry-run
@@ -97,7 +99,7 @@ cat requisitos.txt | intake init "Feature X" -s -
 4. **Resolucion de fuentes**: cada fuente se resuelve via `parse_source()`:
    - Archivos locales → se parsean con el registry
    - URLs (`http://`, `https://`) → se procesan con `UrlParser`
-   - URIs de esquema (`jira://`, `confluence://`, `github://`) → warning "connector not available yet"
+   - URIs de esquema (`jira://`, `confluence://`, `github://`) → se resuelven via conectores API (ver [Conectores](conectores.md))
    - Stdin (`-`) → se lee como texto plano
    - Texto libre → se trata como plaintext
 5. **Clasificacion de complejidad**: si no se especifica `--mode`, se auto-clasifica:
@@ -215,7 +217,7 @@ intake export <SPEC_DIR> -f <formato> [opciones]
 
 | Flag | Corto | Tipo | Default | Descripcion |
 |------|-------|------|---------|-------------|
-| `--format` | `-f` | opcion | — | Formato: `architect`, `claude-code`, `cursor`, `kiro`, `generic`. Requerido. |
+| `--format` | `-f` | opcion | — | Formato: `architect`, `claude-code`, `cursor`, `kiro`, `copilot`, `generic`. Requerido. |
 | `--output` | `-o` | path | `.` | Directorio de salida. |
 
 ### Ejemplos
@@ -226,6 +228,18 @@ intake export specs/api-de-usuarios/ -f architect -o output/
 
 # Exportar formato generico
 intake export specs/api-de-usuarios/ -f generic -o output/
+
+# Exportar para Claude Code (genera CLAUDE.md + .intake/)
+intake export specs/api-de-usuarios/ -f claude-code -o .
+
+# Exportar para Cursor (genera .cursor/rules/)
+intake export specs/api-de-usuarios/ -f cursor -o .
+
+# Exportar para Kiro (formato nativo con checkboxes)
+intake export specs/api-de-usuarios/ -f kiro -o .
+
+# Exportar para GitHub Copilot (genera .github/copilot-instructions.md)
+intake export specs/api-de-usuarios/ -f copilot -o .
 ```
 
 ---
@@ -512,6 +526,67 @@ intake task update specs/mi-feature/ 3 blocked --note "Esperando API de terceros
 
 ---
 
+## intake feedback
+
+Analiza fallos de verificacion y sugiere correcciones a la spec o la implementacion.
+
+```bash
+intake feedback <SPEC_DIR> [opciones]
+```
+
+### Argumento
+
+| Argumento | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `SPEC_DIR` | path | Si | Directorio de la spec. |
+
+### Opciones
+
+| Flag | Corto | Tipo | Default | Descripcion |
+|------|-------|------|---------|-------------|
+| `--verify-report` | `-r` | path | ninguno | Archivo JSON con reporte de verificacion. Si no se proporciona, ejecuta `verify` primero. |
+| `--project-dir` | `-p` | path | `.` | Directorio del proyecto. |
+| `--apply` | | flag | false | Aplicar enmiendas sugeridas directamente a la spec. |
+| `--agent-format` | | opcion | `generic` | Formato de sugerencias: `generic`, `claude-code`, `cursor`. |
+| `--verbose` | `-v` | flag | false | Output detallado. |
+
+### Que hace
+
+1. **Carga el reporte de verificacion**: si no se proporciona `--verify-report`, ejecuta `intake verify` primero para obtener uno
+2. **Analisis LLM**: envia los checks fallidos junto con la spec al LLM para analisis de causa raiz
+3. **Genera sugerencias**: para cada fallo, produce:
+   - Causa raiz
+   - Sugerencia de correccion
+   - Severidad (critical, major, minor)
+   - Tareas afectadas
+   - Enmienda propuesta a la spec (opcional)
+4. **Aplica enmiendas** (si `--apply` o `feedback.auto_amend_spec` en config): modifica la spec directamente
+
+### Ejemplos
+
+```bash
+# Analizar fallos con reporte existente
+intake feedback specs/mi-feature/ --verify-report report.json
+
+# Ejecutar verify + analizar todo en un paso
+intake feedback specs/mi-feature/ -p .
+
+# Aplicar enmiendas automaticamente
+intake feedback specs/mi-feature/ -p . --apply
+
+# Sugerencias en formato para Claude Code
+intake feedback specs/mi-feature/ -p . --agent-format claude-code
+```
+
+### Exit codes
+
+| Codigo | Significado |
+|--------|-------------|
+| `0` | Analisis completado (con o sin sugerencias) |
+| `2` | Error de ejecucion |
+
+---
+
 ## Opciones globales
 
 | Flag | Descripcion |
@@ -520,7 +595,7 @@ intake task update specs/mi-feature/ 3 blocked --note "Esperando API de terceros
 | `--help` | Muestra la ayuda del comando |
 
 ```bash
-intake --version    # intake, version 0.2.0
+intake --version    # intake, version 0.3.0
 intake --help       # Ayuda general
 intake init --help  # Ayuda del comando init
 ```

@@ -1,7 +1,7 @@
 # intake — Seguimiento de Implementación
 
 > Tracking detallado del progreso de implementación.
-> Actualizado: 2026-03-03 (Phase 1 v0.2.0 completada)
+> Actualizado: 2026-03-04 (v0.3.0 — Connectors + Exporters + Feedback + Enterprise Docs)
 
 ---
 
@@ -15,6 +15,9 @@
 | **v0.1.0** | Week 4: Documentation + Polish | **Completada** | 313/313 |
 | **v0.2.0** | Phase 1: Plugin System + Refactor | **Completada** | 492/492 |
 | **v0.2.0** | QA Audit Phase 1 | **Aprobada** | 492/492 (86% cov, 0 mypy, 0 ruff) |
+| **v0.2.0** | Phase 2: Connectors + Exporters + Feedback | **Completada** | 673/673 |
+| **v0.3.0** | Enterprise Docs + SECURITY.md + Version Bump | **Completada** | 673/673 |
+| **v0.3.0** | QA Audit Phase 2 | **Aprobada** | 673/673 (86% cov, 0 mypy, 0 ruff) |
 
 ---
 
@@ -717,3 +720,250 @@
 1. **Coverage docx/pdf**: Agregar fixtures binarios reales con tests dedicados
 2. **Integration test end-to-end**: `init` con fuentes reales (requiere LLM mock completo)
 3. **V2 protocol adoption**: Migrar parsers V1 existentes a V2 para confidence scoring
+
+---
+
+## Phase 2 — Connectors + Exporters + Feedback Loop (v0.2.0) ✅
+
+> Implementada: 2026-03-04
+> Objetivo: Conectores concretos (Jira/Confluence/GitHub APIs), 4 nuevos exporters (Claude Code, Cursor, Kiro, Copilot), y módulo de feedback loop (análisis de fallos de verificación + sugerencias + enmiendas al spec).
+
+### Step 1: Config Schema Updates ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| JiraConfig (expandida) | `src/intake/config/schema.py` | ✅ | auth_type, token_env, email_env, default_project, include_comments, max_comments, fields |
+| ConfluenceConfig (expandida) | `src/intake/config/schema.py` | ✅ | auth_type, token_env, email_env, default_space, include_child_pages, max_depth |
+| GithubConfig (expandida) | `src/intake/config/schema.py` | ✅ | token_env, default_repo |
+| FeedbackConfig (nueva) | `src/intake/config/schema.py` | ✅ | auto_amend_spec, max_suggestions, include_code_snippets |
+| ExportConfig (ampliada) | `src/intake/config/schema.py` | ✅ | claude_code_task_dir, cursor_rules_dir, copilot format |
+| IntakeConfig.feedback | `src/intake/config/schema.py` | ✅ | Campo añadido |
+
+### Step 2: Jira API Connector ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| JiraConnector | `src/intake/connectors/jira_api.py` | ✅ | ConnectorPlugin protocol, lazy import atlassian-python-api |
+| URI patterns | — | ✅ | `jira://PROJ-123`, `jira://PROJ-1,PROJ-2`, `jira://PROJ?jql=...`, `jira://PROJ/sprint/42` |
+| Config injection | `src/intake/cli.py` | ✅ | `_inject_connector_config()` inyecta JiraConfig desde .intake.yaml |
+| Tests | `tests/test_connectors/test_jira_api.py` | ✅ | Mock atlassian.Jira, 15 tests |
+
+### Step 3: Confluence API Connector ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| ConfluenceConnector | `src/intake/connectors/confluence_api.py` | ✅ | ConnectorPlugin protocol, lazy import atlassian-python-api |
+| URI patterns | — | ✅ | `confluence://page/123456`, `confluence://SPACE/Title`, `confluence://search?cql=...` |
+| Tests | `tests/test_connectors/test_confluence_api.py` | ✅ | Mock atlassian.Confluence, 14 tests |
+
+### Step 4: GitHub API Connector ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| GithubConnector | `src/intake/connectors/github_api.py` | ✅ | ConnectorPlugin protocol, lazy import PyGithub |
+| URI patterns | — | ✅ | `github://org/repo/issues/42`, `github://org/repo/issues/1,2,3`, `github://org/repo/issues?labels=bug&state=open` |
+| MAX_ISSUES / MAX_COMMENTS_PER_ISSUE | — | ✅ | 50 / 10 limits |
+| Tests | `tests/test_connectors/test_github_api.py` | ✅ | Mock github.Github, 13 tests |
+
+### Step 5: Connectors Wired into CLI + Plugins ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| Connector exports | `src/intake/connectors/__init__.py` | ✅ | JiraConnector, ConfluenceConnector, GithubConnector |
+| Entry points | `pyproject.toml` | ✅ | 3 connector entry points: jira, confluence, github |
+| CLI connector wiring | `src/intake/cli.py` | ✅ | `_fetch_connector_source()` usa `get_connectors()` + `_inject_connector_config()` |
+| Doctor checks | `src/intake/doctor/checks.py` | ✅ | `_check_connectors()` valida credenciales cuando connectors están configurados |
+
+### Step 6: Export Helpers + Claude Code Exporter ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| _helpers.py | `src/intake/export/_helpers.py` | ✅ | read_spec_file, parse_tasks, load_acceptance_checks, summarize_content, count_requirements |
+| ClaudeCodeExporter | `src/intake/export/claude_code.py` | ✅ | V2 ExporterPlugin: meta, supported_agents, export → ExportResult |
+| claude_md.j2 | `src/intake/templates/` | ✅ | Sección `## intake Spec` con tasks, checks, spec files |
+| claude_task.md.j2 | `src/intake/templates/` | ✅ | Un archivo por task con descripción, checks, contexto |
+| verify_sh.j2 | `src/intake/templates/` | ✅ | Script bash con check() y conteo de resultados |
+| Tests helpers | `tests/test_export/test_helpers.py` | ✅ | 11 tests |
+| Tests claude-code | `tests/test_export/test_claude_code.py` | ✅ | 16 tests (6 clases) |
+
+**Archivos generados por ClaudeCodeExporter:**
+- `CLAUDE.md` — Append/replace sección `## intake Spec` (regex inteligente)
+- `.intake/tasks/TASK-NNN.md` — Un archivo por task
+- `.intake/verify.sh` — Script verificación (chmod +x automático)
+- `.intake/spec-summary.md` — Resumen rápido
+- `.intake/spec/` — Copia de los 6 spec files
+
+### Step 7: Cursor Exporter ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| CursorExporter | `src/intake/export/cursor.py` | ✅ | V2 ExporterPlugin: meta, supported_agents |
+| cursor_rules.mdc.j2 | `src/intake/templates/` | ✅ | YAML frontmatter (`alwaysApply: true`) + Markdown |
+| Tests | `tests/test_export/test_cursor.py` | ✅ | 9 tests |
+
+**Archivos generados:** `.cursor/rules/intake-spec.mdc`, `.intake/spec/`
+
+### Step 8: Kiro Exporter ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| KiroExporter | `src/intake/export/kiro.py` | ✅ | V2 ExporterPlugin: meta, supported_agents |
+| kiro_requirements.md.j2 | `src/intake/templates/` | ✅ | Requirements con `- [ ]` acceptance criteria |
+| kiro_design.md.j2 | `src/intake/templates/` | ✅ | Diseño en formato Kiro |
+| kiro_tasks.md.j2 | `src/intake/templates/` | ✅ | Tasks con status y checkboxes de verificación |
+| Tests | `tests/test_export/test_kiro.py` | ✅ | 13 tests |
+
+**Archivos generados:** `requirements.md`, `design.md`, `tasks.md`, `.intake/spec/`
+
+### Step 9: Copilot Exporter ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| CopilotExporter | `src/intake/export/copilot.py` | ✅ | V2 ExporterPlugin: meta, supported_agents |
+| copilot_instructions.md.j2 | `src/intake/templates/` | ✅ | Instrucciones con contexto, tasks, checks |
+| Tests | `tests/test_export/test_copilot.py` | ✅ | 11 tests |
+
+**Archivos generados:** `.github/copilot-instructions.md`, `.intake/spec/`
+
+### Step 10: Registro de Nuevos Exporters ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| Entry points | `pyproject.toml` | ✅ | 4 nuevos: claude-code, cursor, kiro, copilot (6 total) |
+| Manual fallback | `src/intake/export/registry.py` | ✅ | 6 exporters registrados |
+| Exports | `src/intake/export/__init__.py` | ✅ | ClaudeCodeExporter, CursorExporter, KiroExporter, CopilotExporter, ExportResult |
+| CLI V2 handling | `src/intake/cli.py` | ✅ | `isinstance(result, ExportResult)` para V1/V2 dual support |
+| Format choices | `src/intake/cli.py` | ✅ | architect, claude-code, cursor, kiro, copilot, generic |
+
+### Step 11: Módulo Feedback ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| FeedbackError | `src/intake/feedback/analyzer.py` | ✅ | Exception con reason + suggestion |
+| SpecAmendment | `src/intake/feedback/analyzer.py` | ✅ | Dataclass: target_file, section, action, content |
+| FailureAnalysis | `src/intake/feedback/analyzer.py` | ✅ | Dataclass: check_name, root_cause, suggestion, category, severity, affected_tasks, spec_amendment |
+| FeedbackResult | `src/intake/feedback/analyzer.py` | ✅ | Dataclass: failures, summary, estimated_effort, total_cost + amendment_count/critical_count properties |
+| FeedbackAnalyzer | `src/intake/feedback/analyzer.py` | ✅ | async analyze() con LLM, _extract_failures, _build_context, _parse_response. Usa max_suggestions + include_code_snippets de FeedbackConfig |
+| FEEDBACK_ANALYSIS_PROMPT | `src/intake/feedback/prompts.py` | ✅ | Prompt con {language}, analiza root_cause, suggestion, category, severity, spec_amendment |
+| SuggestionFormatter | `src/intake/feedback/suggestions.py` | ✅ | format() (Jinja2: generic/claude-code/cursor) + format_terminal() (Rich con colores por severity) |
+| SpecUpdater | `src/intake/feedback/spec_updater.py` | ✅ | preview() + apply(). Soporta add/modify/remove en secciones Markdown. Regex: `_section_pattern()` con negative lookahead |
+| AmendmentPreview | `src/intake/feedback/spec_updater.py` | ✅ | Dataclass: amendment, current_content, proposed_content, applicable, reason |
+| ApplyResult | `src/intake/feedback/spec_updater.py` | ✅ | Dataclass: applied, skipped, details |
+| feedback.md.j2 | `src/intake/templates/` | ✅ | Template con rendering agent_format-específico |
+| __init__.py | `src/intake/feedback/__init__.py` | ✅ | Exporta 10 clases/tipos públicos |
+| Tests analyzer | `tests/test_feedback/test_analyzer.py` | ✅ | 10 tests con mock LLM |
+| Tests suggestions | `tests/test_feedback/test_suggestions.py` | ✅ | 9 tests (generic/claude-code/cursor/terminal) |
+| Tests spec_updater | `tests/test_feedback/test_spec_updater.py` | ✅ | 12 tests (preview/apply: add/modify/remove) |
+| Fixture | `tests/fixtures/verify_report_failed.json` | ✅ | 2 pass + 2 fail checks |
+
+### Step 12: Comando CLI Feedback ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| `intake feedback` | `src/intake/cli.py` | ✅ | Options: --verify-report, --project-dir, --apply, --agent-format, --verbose |
+| Auto-verify | — | ✅ | Si no se da --verify-report, ejecuta VerificationEngine primero |
+| auto_amend_spec | — | ✅ | Config field cableado: auto-activa --apply si habilitado |
+| include_code_snippets | — | ✅ | Añade instrucción al LLM para incluir snippets en sugerencias |
+| Tests CLI | `tests/test_cli.py` | ✅ | 5 tests: help, missing dir, all-passed, invalid JSON, format choices |
+
+### Step 13: Doctor Updates ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| _check_connectors() | `src/intake/doctor/checks.py` | ✅ | Lee .intake.yaml, valida credenciales Jira/Confluence/GitHub |
+| Tests | `tests/test_doctor/test_checks.py` | ✅ | 8 tests para connector credentials |
+
+### Step 14: Protocol Conformance + Integration ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| Exporter conformance | `tests/test_export/test_protocol_conformance.py` | ✅ | 20 tests parametrizados: meta, supported_agents, export, isinstance para 4 exporters |
+| Connector conformance | `tests/test_export/test_protocol_conformance.py` | ✅ | 3 tests: Jira, Confluence, GitHub satisfacen ConnectorPlugin |
+| CLI export formats | `tests/test_cli.py` | ✅ | 4 tests: claude-code, cursor, kiro, copilot via CLI |
+
+### Resumen de Archivos Phase 2
+
+**Archivos nuevos (39):**
+
+| # | Archivo | Propósito |
+|---|--------|-----------|
+| 1 | `src/intake/connectors/jira_api.py` | Conector Jira API |
+| 2 | `src/intake/connectors/confluence_api.py` | Conector Confluence API |
+| 3 | `src/intake/connectors/github_api.py` | Conector GitHub API |
+| 4 | `src/intake/export/_helpers.py` | Utilidades compartidas exporters |
+| 5 | `src/intake/export/claude_code.py` | Exporter Claude Code |
+| 6 | `src/intake/export/cursor.py` | Exporter Cursor |
+| 7 | `src/intake/export/kiro.py` | Exporter Kiro |
+| 8 | `src/intake/export/copilot.py` | Exporter Copilot |
+| 9 | `src/intake/feedback/__init__.py` | Módulo feedback init |
+| 10 | `src/intake/feedback/analyzer.py` | Analizador feedback + dataclasses |
+| 11 | `src/intake/feedback/prompts.py` | Prompts LLM para feedback |
+| 12 | `src/intake/feedback/suggestions.py` | Formateador de sugerencias |
+| 13 | `src/intake/feedback/spec_updater.py` | Aplicador de enmiendas al spec |
+| 14-21 | `src/intake/templates/*.j2` | 8 templates Jinja2 |
+| 22-24 | `tests/test_connectors/test_*.py` | 3 test files conectores |
+| 25-29 | `tests/test_export/test_*.py` | 5 test files exporters |
+| 30-33 | `tests/test_feedback/test_*.py` + `__init__.py` | 4 test files feedback |
+| 34 | `tests/fixtures/verify_report_failed.json` | Fixture reporte fallido |
+
+**Archivos modificados (10):**
+
+| Archivo | Cambios |
+|---------|---------|
+| `src/intake/config/schema.py` | Configs expandidas + FeedbackConfig |
+| `src/intake/connectors/__init__.py` | Exports nuevos conectores |
+| `src/intake/export/__init__.py` | Exports nuevos exporters |
+| `src/intake/export/registry.py` | Manual fallback con 6 exporters |
+| `src/intake/cli.py` | Connector wiring, feedback cmd, V2 export handling, config injection |
+| `src/intake/doctor/checks.py` | _check_connectors() |
+| `pyproject.toml` | 7 nuevos entry points (4 exporters + 3 connectors) |
+| `tests/test_export/test_registry.py` | Assertion actualizada a 6 exporters |
+| `tests/test_doctor/test_checks.py` | Tests credenciales conectores |
+| `tests/test_cli.py` | Tests feedback cmd, export nuevos formatos |
+
+### Tests Phase 2 ✅
+
+**181 tests nuevos, 673 total, 0 failures**
+
+| Test file | Tests | Estado |
+|-----------|-------|--------|
+| `tests/test_connectors/test_jira_api.py` | 15 | ✅ |
+| `tests/test_connectors/test_confluence_api.py` | 14 | ✅ |
+| `tests/test_connectors/test_github_api.py` | 13 | ✅ |
+| `tests/test_export/test_helpers.py` | 11 | ✅ |
+| `tests/test_export/test_claude_code.py` | 16 | ✅ |
+| `tests/test_export/test_cursor.py` | 9 | ✅ |
+| `tests/test_export/test_kiro.py` | 13 | ✅ |
+| `tests/test_export/test_copilot.py` | 11 | ✅ |
+| `tests/test_export/test_protocol_conformance.py` | 23 | ✅ |
+| `tests/test_feedback/test_analyzer.py` | 10 | ✅ |
+| `tests/test_feedback/test_suggestions.py` | 9 | ✅ |
+| `tests/test_feedback/test_spec_updater.py` | 12 | ✅ |
+| `tests/test_doctor/test_checks.py` | +8 | ✅ |
+| `tests/test_cli.py` | +17 | ✅ (feedback cmd, new formats, protocol) |
+
+### Quality Gates Phase 2 ✅
+
+| Gate | Estado | Resultado |
+|------|--------|-----------|
+| `python3.12 -m pytest tests/` | ✅ | 673 passed in 33s |
+| `ruff check src/ tests/` | ✅ | All checks passed! |
+| All 4 V2 exporters: ExporterPlugin conformance | ✅ | meta, supported_agents, export → ExportResult |
+| All 3 connectors: ConnectorPlugin conformance | ✅ | meta, uri_schemes, can_handle, fetch, validate_config |
+| FeedbackConfig fields wired | ✅ | auto_amend_spec, max_suggestions, include_code_snippets |
+
+### Decisiones Técnicas Phase 2
+
+21. **Shared export helpers**: `_helpers.py` con read_spec_file, parse_tasks, load_acceptance_checks, summarize_content, count_requirements. Evita duplicación entre 6 exporters.
+
+22. **CLAUDE.md append/replace**: Regex `r"^## intake Spec\b.*?(?=^## (?!intake Spec)|\Z)"` con MULTILINE|DOTALL. Permite que CLAUDE.md existente mantenga otras secciones intactas.
+
+23. **spec_updater section matching**: Regex con negative lookahead `(?:(?!^#{2,3}\s).*\n?)*` para delimitar secciones Markdown sin ser greedy. Corregido de una versión inicial que era demasiado greedy y eliminaba secciones adyacentes.
+
+24. **V1/V2 export dual handling**: `isinstance(result, ExportResult)` en CLI para manejar ambos return types (V1 retorna `list[str]`, V2 retorna `ExportResult`).
+
+25. **Connector config injection**: `_inject_connector_config()` mapea nombres de conector a sus secciones de config y setea `_config` en la instancia. Separa descubrimiento de plugins (entry points) de configuración (`.intake.yaml`).
+
+26. **Feedback usa LLM**: Excepción documentada a la regla de que solo `analyze/` habla con el LLM. El módulo `feedback/` analiza fallos de verificación, no requirements. Usa `FEEDBACK_ANALYSIS_PROMPT` con `{language}` placeholder.
+
+27. **Jinja2 templates para todos los exporters**: Incluso los simples (Copilot). Mantiene consistencia y permite personalización sin tocar código Python.
