@@ -5,7 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-03-03
+## [0.3.0] - 2026-03-04
+
+### Added
+
+#### 3 API connectors (live data fetching)
+
+- **Jira connector** (`connectors/jira_api.py`): Fetches issues from Jira via REST API. Supports single issue (`jira://PROJ-123`), multiple issues (`jira://PROJ-1,PROJ-2`), JQL queries (`jira://PROJ?jql=sprint=42`), and sprint-based fetching (`jira://PROJ/sprint/42`). Lazy import of `atlassian-python-api`. Saves as JSON temp files compatible with `JiraParser`.
+- **Confluence connector** (`connectors/confluence_api.py`): Fetches pages from Confluence Cloud/Server. Supports page by ID (`confluence://page/123456`), by space and title (`confluence://SPACE/Page-Title`), and CQL search (`confluence://search?cql=...`). Saves as HTML temp files compatible with `ConfluenceParser`.
+- **GitHub connector** (`connectors/github_api.py`): Fetches issues from GitHub repos via PyGithub. Supports single issue (`github://org/repo/issues/42`), multiple issues, and filtered queries (`github://org/repo/issues?labels=bug&state=open`). Max 50 issues, 10 comments per issue.
+- **Doctor connector checks** (`doctor/checks.py`): `_check_connectors()` validates connector credentials when connectors are configured.
+- **3 connector entry points** in `pyproject.toml`: `jira`, `confluence`, `github` under `[project.entry-points."intake.connectors"]`.
+
+#### 4 new exporters (6 total)
+
+- **Claude Code exporter** (`export/claude_code.py`): Generates `CLAUDE.md` (smart append/replace), `.intake/tasks/TASK-NNN.md`, `.intake/verify.sh`, `.intake/spec-summary.md`, and `.intake/spec/` copy.
+- **Cursor exporter** (`export/cursor.py`): Generates `.cursor/rules/intake-spec.mdc` with YAML frontmatter.
+- **Kiro exporter** (`export/kiro.py`): Generates `requirements.md`, `design.md`, `tasks.md` in Kiro's native format.
+- **Copilot exporter** (`export/copilot.py`): Generates `.github/copilot-instructions.md`.
+- All 4 exporters implement the **V2 ExporterPlugin protocol**: `meta`, `supported_agents`, `export() → ExportResult`.
+- **Shared export helpers** (`export/_helpers.py`): `read_spec_file()`, `parse_tasks()`, `load_acceptance_checks()`, `summarize_content()`, `count_requirements()`.
+- **9 new Jinja2 templates**: `claude_md.j2`, `claude_task.md.j2`, `verify_sh.j2`, `cursor_rules.mdc.j2`, `kiro_requirements.md.j2`, `kiro_design.md.j2`, `kiro_tasks.md.j2`, `copilot_instructions.md.j2`, `feedback.md.j2`.
+
+#### Feedback loop (analyze verification failures)
+
+- **Feedback analyzer** (`feedback/analyzer.py`): LLM-based failure analysis with root cause identification, severity classification, and spec amendments. Dataclasses: `SpecAmendment`, `FailureAnalysis`, `FeedbackResult`.
+- **Feedback prompts** (`feedback/prompts.py`): Analysis prompt with `{language}` placeholder and structured JSON output schema.
+- **Suggestion formatter** (`feedback/suggestions.py`): Terminal output (Rich) + agent-specific formatting (generic, claude-code, cursor).
+- **Spec updater** (`feedback/spec_updater.py`): Preview and apply spec amendments with add/modify/remove actions.
+- **`intake feedback` CLI command**: Options `--verify-report`, `--project-dir`, `--apply`, `--agent-format`, `--verbose`.
+
+#### Configuration updates
+
+- **`FeedbackConfig`** model: `auto_amend_spec`, `max_suggestions`, `include_code_snippets`.
+- **Expanded connector configs**: `JiraConfig` (auth_type, fields, max_comments), `ConfluenceConfig` (include_child_pages, max_depth), `GithubConfig` (default_repo).
+- **`ExportConfig`** expanded: `claude_code_task_dir`, `cursor_rules_dir`.
+
+#### Enterprise documentation
+
+- **`docs/seguridad.md`** (NEW): Threat model, data flow, secrets management, redaction patterns, offline/air-gapped mode, audit trail, compliance (SOC2/HIPAA/ISO 27001/GDPR).
+- **`docs/despliegue.md`** (NEW): Docker multi-stage, docker-compose, pre-commit hooks, deployment patterns, env vars.
+- **`docs/integracion-cicd.md`** (NEW): GitHub Actions, GitLab CI, Jenkins, Azure DevOps, JUnit/JSON reports, spec drift, notifications.
+- **`docs/flujos-trabajo.md`** (NEW): Solo developer, small team, enterprise, monorepo, AI agent, regulated industries.
+- **`docs/conectores.md`** (NEW): Jira, Confluence, GitHub API connectors documentation.
+- **`docs/feedback.md`** (NEW): Feedback loop usage, severity levels, spec amendments, agent formats.
+- **`SECURITY.md`** (NEW): English security policy at project root (GitHub Security tab).
+- 10 existing documentation files updated with Phase 2 content.
+
+#### Test suite
+
+- **673 tests** (up from 492), **0 failures**. 181 new tests added.
+- 14 new test files covering connectors, exporters, feedback, and protocol conformance.
+- Protocol conformance tests: 20 parametrized tests for V2 exporters + 3 for connectors.
+
+### Fixed
+
+#### QA Audit (14 mypy errors, 7 ruff errors, 25 format issues)
+
+- **ExporterRegistry type safety** (`export/registry.py`): Introduced `AnyExporter = Exporter | Any` union type for V1/V2 dual protocol support. Changed `_exporters`, `register()`, and `get()` types to accept both V1 and V2 exporters without `type: ignore`.
+- **Connector `Returning Any`** (`connectors/jira_api.py`, `connectors/confluence_api.py`): Wrapped `data.get()` calls with `list()` and explicit `str` annotations to satisfy mypy --strict.
+- **Unused `type: ignore` comments**: Removed 3 stale `# type: ignore[import-untyped]` from connectors after `atlassian-python-api` and `PyGithub` gained type stubs.
+- **CLI report type** (`cli.py`): Changed `report_data: dict[str, object]` to `dict[str, Any]` for correct iterable access.
+- **Connector registration guard** (`cli.py`): Added `isinstance(connector_obj, ConnectorPlugin)` check for type-safe connector registration.
+- **Unused imports** (`tests/`): Removed `PropertyMock`, `pytest`, `json`, `yaml` unused imports in test files.
+- **TYPE_CHECKING import** (`tests/test_feedback/test_analyzer.py`): Moved `Path` import to `TYPE_CHECKING` block (TC003).
+- **25 files reformatted** with `ruff format` for consistent code style.
+
+## [0.2.0] - 2026-03-04
 
 ### Added
 

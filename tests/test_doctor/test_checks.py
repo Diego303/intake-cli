@@ -71,6 +71,111 @@ class TestDoctorChecks:
         assert "not a valid YAML mapping" in result.message
 
 
+class TestDoctorConnectors:
+    """Tests for connector credential checks."""
+
+    def test_no_connectors_configured(self, tmp_path: Path) -> None:
+        """No connector checks when no connectors in config."""
+        config = tmp_path / ".intake.yaml"
+        config.write_text("llm:\n  model: test\n")
+        checks = DoctorChecks()
+        results = checks._check_connectors(str(config))
+        assert results == []
+
+    def test_jira_credentials_pass(self, tmp_path: Path) -> None:
+        """Jira check passes when credentials are set."""
+        config = tmp_path / ".intake.yaml"
+        config.write_text(
+            "connectors:\n  jira:\n    url: https://jira.example.com\n"
+            "    token_env: JIRA_TOKEN\n    email_env: JIRA_EMAIL\n"
+        )
+        checks = DoctorChecks()
+        with patch.dict(os.environ, {"JIRA_TOKEN": "tok", "JIRA_EMAIL": "a@b.com"}):
+            results = checks._check_connectors(str(config))
+        assert len(results) == 1
+        assert results[0].passed is True
+        assert "Jira" in results[0].name
+
+    def test_jira_credentials_fail(self, tmp_path: Path) -> None:
+        """Jira check fails when credentials are missing."""
+        config = tmp_path / ".intake.yaml"
+        config.write_text("connectors:\n  jira:\n    url: https://jira.example.com\n")
+        checks = DoctorChecks()
+        env = {k: v for k, v in os.environ.items() if k not in {"JIRA_API_TOKEN", "JIRA_EMAIL"}}
+        with patch.dict(os.environ, env, clear=True):
+            results = checks._check_connectors(str(config))
+        assert len(results) == 1
+        assert results[0].passed is False
+        assert "Missing" in results[0].message
+
+    def test_confluence_credentials_pass(self, tmp_path: Path) -> None:
+        """Confluence check passes when credentials are set."""
+        config = tmp_path / ".intake.yaml"
+        config.write_text("connectors:\n  confluence:\n    url: https://wiki.example.com\n")
+        checks = DoctorChecks()
+        with patch.dict(
+            os.environ,
+            {
+                "CONFLUENCE_API_TOKEN": "tok",
+                "CONFLUENCE_EMAIL": "a@b.com",
+            },
+        ):
+            results = checks._check_connectors(str(config))
+        assert len(results) == 1
+        assert results[0].passed is True
+
+    def test_github_token_pass(self, tmp_path: Path) -> None:
+        """GitHub check passes when token is set."""
+        config = tmp_path / ".intake.yaml"
+        config.write_text("connectors:\n  github:\n    token_env: GITHUB_TOKEN\n")
+        checks = DoctorChecks()
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "ghp_test123"}):
+            results = checks._check_connectors(str(config))
+        assert len(results) == 1
+        assert results[0].passed is True
+
+    def test_github_token_fail(self, tmp_path: Path) -> None:
+        """GitHub check fails when token is missing."""
+        config = tmp_path / ".intake.yaml"
+        config.write_text("connectors:\n  github:\n    token_env: GH_CUSTOM_TOKEN\n")
+        checks = DoctorChecks()
+        env = {k: v for k, v in os.environ.items() if k != "GH_CUSTOM_TOKEN"}
+        with patch.dict(os.environ, env, clear=True):
+            results = checks._check_connectors(str(config))
+        assert len(results) == 1
+        assert results[0].passed is False
+
+    def test_no_config_file(self) -> None:
+        """No checks when config file doesn't exist."""
+        checks = DoctorChecks()
+        results = checks._check_connectors("/nonexistent/.intake.yaml")
+        assert results == []
+
+    def test_multiple_connectors(self, tmp_path: Path) -> None:
+        """Multiple connector checks when multiple are configured."""
+        config = tmp_path / ".intake.yaml"
+        config.write_text(
+            "connectors:\n"
+            "  jira:\n    url: https://jira.example.com\n"
+            "  confluence:\n    url: https://wiki.example.com\n"
+            "  github:\n    token_env: GITHUB_TOKEN\n"
+        )
+        checks = DoctorChecks()
+        with patch.dict(
+            os.environ,
+            {
+                "JIRA_API_TOKEN": "t",
+                "JIRA_EMAIL": "e",
+                "CONFLUENCE_API_TOKEN": "t",
+                "CONFLUENCE_EMAIL": "e",
+                "GITHUB_TOKEN": "ghp",
+            },
+        ):
+            results = checks._check_connectors(str(config))
+        assert len(results) == 3
+        assert all(r.passed for r in results)
+
+
 class TestDoctorFix:
     """Tests for the doctor --fix auto-fix functionality."""
 

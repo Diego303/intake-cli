@@ -1,0 +1,47 @@
+# Feedback Analysis
+
+{% if not result.failures %}
+All checks passed. No feedback needed.
+{% else %}
+**{{ result.failures | length }} failure(s) found.** Estimated effort: {{ result.estimated_effort }}
+
+{% for failure in result.failures %}
+## {{ loop.index }}. {{ failure.check_name }}
+
+**Severity:** {{ failure.severity }}
+**Category:** {{ failure.category }}
+
+**Root Cause:** {{ failure.root_cause }}
+
+**Suggestion:** {{ failure.suggestion }}
+
+{% if failure.affected_tasks %}
+**Affected Tasks:** {{ failure.affected_tasks | join(", ") }}
+{% endif %}
+
+{% if failure.spec_amendment %}
+**Spec Amendment:**
+- File: `{{ failure.spec_amendment.target_file }}`
+- Section: {{ failure.spec_amendment.section }}
+- Action: {{ failure.spec_amendment.action }}
+{% if agent_format == "claude-code" %}
+
+```
+{{ failure.spec_amendment.content }}
+```
+{% elif agent_format == "cursor" %}
+
+> {{ failure.spec_amendment.content }}
+{% else %}
+
+{{ failure.spec_amendment.content }}
+{% endif %}
+{% endif %}
+
+{% endfor %}
+{% if result.summary %}
+## Summary
+
+{{ result.summary }}
+{% endif %}
+{% endif %}

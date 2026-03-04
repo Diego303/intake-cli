@@ -31,18 +31,23 @@ verify/                   <- FASE 4: Ejecucion de subprocesos. Sin dependencia d
   |
 export/                   <- FASE 5: Generacion de archivos + plugin discovery. Sin dependencia de LLM.
 
-connectors/               <- Infraestructura para conectores API (preparacion Fase 2)
+connectors/               <- 3 conectores API: Jira, Confluence, GitHub (async fetch)
+  |
+feedback/                 <- Feedback loop: analisis de fallos + enmiendas a la spec (requiere LLM)
+
 diff/                     <- Standalone: compara directorios de specs
-doctor/                   <- Standalone: checks del entorno
-llm/                      <- Compartido: SOLO usado por analyze/
+doctor/                   <- Standalone: checks del entorno + validacion de credenciales
+llm/                      <- Compartido: usado por analyze/ y feedback/
 utils/                    <- Compartido: usado por cualquier modulo
 ```
 
 ### Regla critica de aislamiento
 
-Los modulos `ingest/`, `generate/`, `verify/`, `export/`, `diff/` y `doctor/` **nunca** importan de `llm/` ni de `analyze/`. Solo `analyze/` se comunica con el LLM. Esto garantiza que todo excepto `init` y `add` funcione offline.
+Los modulos `ingest/`, `generate/`, `verify/`, `export/`, `diff/` y `doctor/` **nunca** importan de `llm/` ni de `analyze/`. Esto garantiza que todo excepto `init`, `add` y `feedback` funcione offline.
 
-La unica excepcion es `ImageParser`, que acepta un callable de vision inyectado (no importa directamente del LLM).
+Excepciones documentadas:
+- `ImageParser` acepta un callable de vision inyectado (no importa directamente del LLM)
+- `feedback/` usa el LLM para analizar fallos de verificacion, pero no analiza requisitos — es un modulo independiente de `analyze/`
 
 ---
 
@@ -52,7 +57,7 @@ La unica excepcion es `ImageParser`, que acepta un callable de vision inyectado 
 src/intake/
 ├── cli.py                  # Click CLI — adaptador delgado, sin logica
 ├── config/                 # Modelos Pydantic v2, presets, loader
-│   ├── schema.py           #   7 modelos de config (LLM, Project, Spec, Verification, Export, Security, Connectors)
+│   ├── schema.py           #   9 modelos de config (LLM, Project, Spec, Verification, Export, Security, Connectors, Feedback, Intake)
 │   ├── presets.py           #   minimal / standard / enterprise
 │   ├── loader.py            #   Merge por capas: defaults -> preset -> YAML -> CLI
 │   └── defaults.py          #   Constantes centralizadas
@@ -60,8 +65,11 @@ src/intake/
 │   ├── protocols.py         #   Protocolos V2: ParserPlugin, ExporterPlugin, ConnectorPlugin
 │   ├── discovery.py         #   Descubrimiento via importlib.metadata.entry_points()
 │   └── hooks.py             #   Sistema de hooks del pipeline (HookManager)
-├── connectors/             # Infraestructura para conectores (preparacion)
-│   └── base.py              #   ConnectorRegistry, ConnectorError
+├── connectors/             # 3 conectores API directos (async fetch + plugin protocol)
+│   ├── base.py              #   ConnectorRegistry, ConnectorError
+│   ├── jira_api.py          #   Jira: issues, JQL, sprints via atlassian-python-api
+│   ├── confluence_api.py    #   Confluence: paginas por ID, space/titulo, CQL
+│   └── github_api.py        #   GitHub: issues individuales, filtrados, por labels
 ├── ingest/                 # Fase 1 — 11 parsers + registry + plugin discovery + auto-deteccion
 │   ├── base.py              #   ParsedContent dataclass + Parser Protocol
 │   ├── registry.py          #   Auto-deteccion + plugin discovery + dispatch de parsers
@@ -94,24 +102,43 @@ src/intake/
 ├── verify/                 # Fase 4 — Motor de checks de aceptacion
 │   ├── engine.py            #   4 tipos: command, files_exist, pattern_present, pattern_absent
 │   └── reporter.py          #   Terminal (Rich), JSON, JUnit XML
-├── export/                 # Fase 5 — Output listo para agentes + plugin discovery
+├── export/                 # Fase 5 — Output listo para agentes + plugin discovery (6 exporters)
 │   ├── base.py              #   Exporter Protocol
 │   ├── registry.py          #   Plugin discovery + dispatch por formato
-│   ├── architect.py         #   Genera pipeline.yaml
-│   └── generic.py           #   Genera SPEC.md + verify.sh
+│   ├── _helpers.py          #   Utilidades compartidas (read_spec_file, parse_tasks, etc.)
+│   ├── architect.py         #   Genera pipeline.yaml (V1)
+│   ├── generic.py           #   Genera SPEC.md + verify.sh (V1)
+│   ├── claude_code.py       #   CLAUDE.md + .intake/tasks/ + verify.sh (V2)
+│   ├── cursor.py            #   .cursor/rules/intake-spec.mdc (V2)
+│   ├── kiro.py              #   requirements/design/tasks en formato Kiro (V2)
+│   └── copilot.py           #   .github/copilot-instructions.md (V2)
 ├── diff/                   # Comparacion de specs
 │   └── differ.py            #   Compara por IDs de requisitos/tareas
 ├── doctor/                 # Checks de salud del entorno
 │   └── checks.py            #   Python, API keys, deps, config + auto-fix
 ├── llm/                    # Wrapper LiteLLM (solo usado por analyze/)
 │   └── adapter.py           #   Completion async, retry, cost tracking, budget
-├── templates/              # Templates Jinja2 para generacion de specs
+├── feedback/               # Feedback loop: analisis de fallos + enmiendas (requiere LLM)
+│   ├── analyzer.py          #   FeedbackAnalyzer: analisis LLM de checks fallidos
+│   ├── prompts.py           #   FEEDBACK_ANALYSIS_PROMPT
+│   ├── suggestions.py       #   SuggestionFormatter: generic, claude-code, cursor
+│   └── spec_updater.py      #   SpecUpdater: preview + apply de enmiendas a la spec
+├── templates/              # 15 templates Jinja2 (6 spec + 3 claude-code + 3 kiro + 1 cursor + 1 copilot + 1 feedback)
 │   ├── requirements.md.j2
 │   ├── design.md.j2
 │   ├── tasks.md.j2          #   Incluye columna de Status por tarea
 │   ├── acceptance.yaml.j2
 │   ├── context.md.j2
-│   └── sources.md.j2
+│   ├── sources.md.j2
+│   ├── claude_md.j2         #   Seccion para CLAUDE.md
+│   ├── claude_task.md.j2    #   Tarea individual para Claude Code
+│   ├── verify_sh.j2         #   Script de verificacion
+│   ├── cursor_rules.mdc.j2  #   Reglas de Cursor
+│   ├── kiro_requirements.md.j2  #   Requisitos en formato Kiro
+│   ├── kiro_design.md.j2    #   Diseno en formato Kiro
+│   ├── kiro_tasks.md.j2     #   Tareas en formato Kiro
+│   ├── copilot_instructions.md.j2  #   Instrucciones para Copilot
+│   └── feedback.md.j2       #   Formato de sugerencias de feedback
 └── utils/                  # Utilidades compartidas
     ├── file_detect.py       #   Deteccion de formato por extension
     ├── project_detect.py    #   Auto-deteccion del stack tecnologico
@@ -233,6 +260,10 @@ PluginError
 ConnectorError
 └── ConnectorNotFoundError
 
+FeedbackError
+
+SpecUpdateError
+
 TaskStateError
 ```
 
@@ -255,6 +286,13 @@ TaskStateError
 | `structlog` | >=24.0 | Logging estructurado |
 | `httpx` | >=0.27 | HTTP client (URL parser, conectores) |
 
+**Dependencias opcionales (conectores):**
+
+| Paquete | Version | Uso |
+|---------|---------|-----|
+| `atlassian-python-api` | >=3.40 | Conectores Jira y Confluence |
+| `PyGithub` | >=2.0 | Conector GitHub |
+
 ---
 
 ## Sistema de plugins
@@ -268,8 +306,8 @@ Los plugins se descubren automaticamente via `importlib.metadata.entry_points()`
 | Grupo | Contenido |
 |-------|-----------|
 | `intake.parsers` | 11 parsers built-in |
-| `intake.exporters` | 2 exporters built-in |
-| `intake.connectors` | (vacio — preparacion para Fase 2) |
+| `intake.exporters` | 6 exporters built-in (2 V1 + 4 V2) |
+| `intake.connectors` | 3 connectors built-in (Jira, Confluence, GitHub) |
 
 Los registries (`ParserRegistry`, `ExporterRegistry`) intentan plugin discovery primero y caen back a registro manual si falla. Esto permite que plugins externos se registren automaticamente con solo instalar el paquete.
 

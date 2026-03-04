@@ -25,6 +25,9 @@ Esto verifica:
 | litellm | Paquete instalado | Si |
 | jinja2 | Paquete instalado | Si |
 | Config file | `.intake.yaml` valido | Si |
+| Jira credentials | `JIRA_API_TOKEN` + `JIRA_EMAIL` (si jira configurado) | No |
+| Confluence credentials | `CONFLUENCE_API_TOKEN` + `CONFLUENCE_EMAIL` (si confluence configurado) | No |
+| GitHub token | `GITHUB_TOKEN` (si github configurado) | No |
 
 ### Auto-fix
 
@@ -151,22 +154,61 @@ intake init "Feature" -s page.html
 
 ---
 
-### URI de esquema no soportado
+### Conector no puede conectar
 
-**Warning:**
+**Error:**
 ```
-Source 'jira://PROJ-123' uses scheme 'jira' - connector not available yet
+Connector error: Failed to connect to Jira at https://company.atlassian.net
+  Hint: Check connectors.jira.url and credentials in .intake.yaml
 ```
 
-**Solucion:** Los conectores API directos (jira://, confluence://, github://) aun no estan implementados. Mientras tanto:
+**Solucion:**
 
-1. **Jira**: Exporta los issues como JSON desde la interfaz web y usa el archivo
-2. **Confluence**: Exporta la pagina como HTML y usa el archivo
-3. **GitHub**: Usa `gh api` para exportar issues como JSON:
-   ```bash
-   gh api repos/org/repo/issues > issues.json
-   intake init "Bugs" -s issues.json
+1. Verificar que la URL base es correcta en `.intake.yaml`:
+   ```yaml
+   connectors:
+     jira:
+       url: "https://company.atlassian.net"
    ```
+
+2. Verificar que las variables de entorno estan configuradas:
+   ```bash
+   echo $JIRA_API_TOKEN    # debe tener un valor
+   echo $JIRA_EMAIL        # debe tener un valor
+   ```
+
+3. Ejecutar `intake doctor` para validar credenciales de conectores.
+
+4. Si la API requiere VPN o firewall, verificar la conexion de red.
+
+### Conector no disponible (dependencia faltante)
+
+**Error:**
+```
+Connector 'jira' requires atlassian-python-api.
+  Hint: Install with: pip install "intake-ai-cli[connectors]"
+```
+
+**Solucion:**
+
+```bash
+# Instalar dependencias de conectores
+pip install "intake-ai-cli[connectors]"
+```
+
+Los paquetes opcionales para conectores son:
+
+| Conector | Paquete | Instalacion |
+|----------|---------|-------------|
+| Jira | atlassian-python-api | `pip install atlassian-python-api` |
+| Confluence | atlassian-python-api | `pip install atlassian-python-api` |
+| GitHub | PyGithub | `pip install PyGithub` |
+
+**Alternativa sin instalar conectores:** Exporta los datos manualmente:
+
+1. **Jira**: Exporta issues como JSON desde la interfaz web
+2. **Confluence**: Exporta la pagina como HTML
+3. **GitHub**: Usa `gh api repos/org/repo/issues > issues.json`
 
 ---
 

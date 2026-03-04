@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 from intake.config.schema import (
+    ConfluenceConfig,
+    ConnectorsConfig,
     ExportConfig,
+    FeedbackConfig,
+    GithubConfig,
     IntakeConfig,
+    JiraConfig,
     LLMConfig,
     ProjectConfig,
     SecurityConfig,
@@ -42,6 +47,83 @@ class TestSpecConfig:
         assert config.requirements_format == "bdd"
 
 
+class TestExportConfig:
+    def test_defaults(self) -> None:
+        config = ExportConfig()
+        assert config.default_format == "generic"
+        assert config.claude_code_generate_claude_md is True
+        assert config.claude_code_task_dir == ".intake/tasks"
+        assert config.cursor_rules_dir == ".cursor/rules"
+
+    def test_copilot_format_allowed(self) -> None:
+        config = ExportConfig(default_format="copilot")
+        assert config.default_format == "copilot"
+
+
+class TestJiraConfig:
+    def test_defaults(self) -> None:
+        config = JiraConfig()
+        assert config.url == ""
+        assert config.auth_type == "token"
+        assert config.token_env == "JIRA_API_TOKEN"
+        assert config.email_env == "JIRA_EMAIL"
+        assert config.default_project == ""
+        assert config.include_comments is True
+        assert config.max_comments == 5
+        assert "summary" in config.fields
+        assert "description" in config.fields
+
+    def test_custom_values(self) -> None:
+        config = JiraConfig(
+            url="https://mycompany.atlassian.net",
+            email_env="MY_JIRA_EMAIL",
+            max_comments=10,
+        )
+        assert config.url == "https://mycompany.atlassian.net"
+        assert config.email_env == "MY_JIRA_EMAIL"
+        assert config.max_comments == 10
+
+
+class TestConfluenceConfig:
+    def test_defaults(self) -> None:
+        config = ConfluenceConfig()
+        assert config.url == ""
+        assert config.auth_type == "token"
+        assert config.token_env == "CONFLUENCE_API_TOKEN"
+        assert config.email_env == "CONFLUENCE_EMAIL"
+        assert config.default_space == ""
+        assert config.include_child_pages is False
+        assert config.max_depth == 1
+
+
+class TestGithubConfig:
+    def test_defaults(self) -> None:
+        config = GithubConfig()
+        assert config.token_env == "GITHUB_TOKEN"
+        assert config.default_repo == ""
+
+
+class TestConnectorsConfig:
+    def test_defaults(self) -> None:
+        config = ConnectorsConfig()
+        assert isinstance(config.jira, JiraConfig)
+        assert isinstance(config.confluence, ConfluenceConfig)
+        assert isinstance(config.github, GithubConfig)
+
+
+class TestFeedbackConfig:
+    def test_defaults(self) -> None:
+        config = FeedbackConfig()
+        assert config.auto_amend_spec is False
+        assert config.max_suggestions == 10
+        assert config.include_code_snippets is True
+
+    def test_custom_values(self) -> None:
+        config = FeedbackConfig(auto_amend_spec=True, max_suggestions=5)
+        assert config.auto_amend_spec is True
+        assert config.max_suggestions == 5
+
+
 class TestIntakeConfig:
     def test_defaults(self) -> None:
         config = IntakeConfig()
@@ -51,6 +133,8 @@ class TestIntakeConfig:
         assert isinstance(config.verification, VerificationConfig)
         assert isinstance(config.export, ExportConfig)
         assert isinstance(config.security, SecurityConfig)
+        assert isinstance(config.connectors, ConnectorsConfig)
+        assert isinstance(config.feedback, FeedbackConfig)
 
     def test_nested_override(self) -> None:
         config = IntakeConfig(llm=LLMConfig(model="gpt-4o"))
@@ -64,3 +148,7 @@ class TestIntakeConfig:
         )
         assert updated.llm.model == "gemini-pro"
         assert config.llm.model == "claude-sonnet-4"
+
+    def test_feedback_nested(self) -> None:
+        config = IntakeConfig(feedback=FeedbackConfig(auto_amend_spec=True))
+        assert config.feedback.auto_amend_spec is True

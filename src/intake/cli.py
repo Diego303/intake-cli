@@ -14,12 +14,13 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from intake.analyze.models import AnalysisResult
     from intake.config.schema import IntakeConfig
     from intake.ingest.base import ParsedContent
+    from intake.plugins.protocols import FetchedSource
 
 import click
 from rich.console import Console
@@ -84,7 +85,7 @@ def main() -> None:
     "-f",
     "export_format",
     default=None,
-    type=click.Choice(["architect", "claude-code", "cursor", "kiro", "generic"]),
+    type=click.Choice(["architect", "claude-code", "cursor", "kiro", "copilot", "generic"]),
     help="Export format (default: config or 'generic').",
 )
 @click.option(
@@ -207,7 +208,7 @@ def init(
     try:
         # Phase 1: Ingest (with source URI resolution)
         console.print("[bold]Phase 1:[/bold] Ingesting sources...")
-        parsed_sources = _resolve_and_parse_sources(source)
+        parsed_sources = _resolve_and_parse_sources(source, config)
 
         # Phase 2: Analyze
         console.print("[bold]Phase 2:[/bold] Analyzing with LLM...")
@@ -238,14 +239,19 @@ def init(
         if export_format:
             console.print(f"[bold]Phase 5:[/bold] Exporting ({export_format})...")
             from intake.export.registry import create_default_registry as create_export_registry
+            from intake.plugins.protocols import ExportResult as ExportRes
 
             export_registry = create_export_registry()
             spec_dir = str(Path(config.spec.output_dir) / spec_name)
             exporter = export_registry.get(export_format)
             export_out = str(Path(config.spec.output_dir) / spec_name / "export")
-            exported = exporter.export(spec_dir, export_out)
-            for f in exported:
-                console.print(f"  Exported: {f}")
+            export_result = exporter.export(spec_dir, export_out)
+            if isinstance(export_result, ExportRes):
+                for f in export_result.files_created:
+                    console.print(f"  Exported: {f}")
+            else:
+                for f in export_result:
+                    console.print(f"  Exported: {f}")
 
         # Summary
         console.print("")
@@ -435,7 +441,7 @@ def verify(
     "-f",
     "export_format",
     required=True,
-    type=click.Choice(["architect", "claude-code", "cursor", "kiro", "generic"]),
+    type=click.Choice(["architect", "claude-code", "cursor", "kiro", "copilot", "generic"]),
     help="Export format.",
 )
 @click.option(
@@ -453,16 +459,179 @@ def export(spec_dir: str, export_format: str, output: str) -> None:
     """
     try:
         from intake.export.registry import create_default_registry
+        from intake.plugins.protocols import ExportResult
 
         registry = create_default_registry()
         exporter = registry.get(export_format)
-        generated = exporter.export(spec_dir, output)
+        result = exporter.export(spec_dir, output)
 
-        for f in generated:
-            console.print(f"  Generated: {f}")
+        # Handle both V1 (list[str]) and V2 (ExportResult) return types
+        if isinstance(result, ExportResult):
+            for f in result.files_created:
+                console.print(f"  Generated: {f}")
+            if result.instructions:
+                console.print(f"\n{result.instructions}")
+            console.print(
+                f"\n[green]Exported {len(result.files_created)} file(s) to {output}[/green]"
+            )
+        else:
+            # V1 exporter returns list[str]
+            for f in result:
+                console.print(f"  Generated: {f}")
+            console.print(f"\n[green]Exported {len(result)} file(s) to {output}[/green]")
 
-        console.print(f"\n[green]Exported {len(generated)} file(s) to {output}[/green]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(2)
 
+
+@main.command()
+@click.argument("spec_dir", type=click.Path(exists=True))
+@click.option(
+    "--verify-report",
+    "-r",
+    default=None,
+    type=click.Path(exists=True),
+    help="Path to a JSON verification report. If omitted, runs verify first.",
+)
+@click.option(
+    "--project-dir",
+    "-p",
+    default=".",
+    type=click.Path(exists=True),
+    help="Project directory to verify against.",
+)
+@click.option(
+    "--apply",
+    "apply_amendments",
+    is_flag=True,
+    help="Auto-apply suggested spec amendments.",
+)
+@click.option(
+    "--agent-format",
+    default="generic",
+    type=click.Choice(["generic", "claude-code", "cursor"]),
+    help="Output format for suggestions.",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Verbose output.")
+def feedback(
+    spec_dir: str,
+    verify_report: str | None,
+    project_dir: str,
+    apply_amendments: bool,
+    agent_format: str,
+    verbose: bool,
+) -> None:
+    """Analyze verification failures and suggest fixes.
+
+    Runs the feedback loop: analyze failed checks, identify root causes,
+    and produce actionable suggestions. Optionally auto-amends the spec.
+
+    Examples:
+      intake feedback ./specs/auth-oauth2
+
+      intake feedback ./specs/auth -r report.json --apply
+
+      intake feedback ./specs/auth --agent-format claude-code
+    """
+    setup_logging(verbose=verbose)
+
+    try:
+        config = load_config()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(2)
+
+    try:
+        import json
+
+        report_data: dict[str, Any]
+
+        if verify_report:
+            # Load existing report
+            with open(verify_report, encoding="utf-8") as f:
+                report_data = json.load(f)
+            console.print(f"[bold]Loaded report:[/bold] {verify_report}")
+        else:
+            # Run verify to get a report
+            console.print("[bold]Running verification...[/bold]")
+            from intake.verify.engine import VerificationEngine
+
+            engine = VerificationEngine(
+                project_dir=project_dir,
+                timeout_per_check=config.verification.timeout_per_check,
+            )
+            acceptance_file = str(Path(spec_dir) / "acceptance.yaml")
+            report = engine.run(acceptance_file=acceptance_file)
+            report_data = {
+                "spec_name": report.spec_name,
+                "total": report.total_checks,
+                "passed": report.passed,
+                "failed": report.failed,
+                "checks": [
+                    {
+                        "id": r.id,
+                        "name": r.name,
+                        "status": "pass" if r.passed else "fail",
+                        "error": r.error,
+                    }
+                    for r in report.results
+                ],
+            }
+
+        # Check if there are failures
+        checks = report_data.get("checks", [])
+        failed = [c for c in checks if isinstance(c, dict) and c.get("status") == "fail"]
+        if not failed:
+            console.print("[green]All checks passed. No feedback needed.[/green]")
+            return
+
+        console.print(f"[bold]Analyzing {len(failed)} failure(s)...[/bold]")
+
+        # Analyze with LLM
+        from intake.feedback.analyzer import FeedbackAnalyzer
+        from intake.feedback.suggestions import SuggestionFormatter
+        from intake.llm import LLMAdapter
+
+        llm = LLMAdapter(config.llm)
+        analyzer = FeedbackAnalyzer(config=config, llm=llm)
+        result = asyncio.run(analyzer.analyze(report_data, spec_dir, project_dir))
+
+        # Display results
+        formatter = SuggestionFormatter()
+        terminal_output = formatter.format_terminal(result)
+        console.print(terminal_output)
+
+        # Optionally write formatted output
+        if agent_format != "generic" or verbose:
+            formatted = formatter.format(result, agent_format=agent_format)
+            console.print(f"\n[dim]--- {agent_format} format ---[/dim]")
+            console.print(formatted)
+
+        # Apply amendments if requested or auto-amend is enabled
+        if not apply_amendments and config.feedback.auto_amend_spec:
+            apply_amendments = True
+            console.print("[dim](auto_amend_spec enabled in config)[/dim]")
+
+        if apply_amendments and result.amendment_count > 0:
+            from intake.feedback.spec_updater import SpecUpdater
+
+            console.print(f"\n[bold]Applying {result.amendment_count} amendment(s)...[/bold]")
+            updater = SpecUpdater(spec_dir)
+            apply_result = updater.apply(result)
+            for detail in apply_result.details:
+                console.print(f"  {detail}")
+            console.print(
+                f"\n[green]{apply_result.applied} applied[/green], {apply_result.skipped} skipped"
+            )
+
+        # Show cost
+        if result.total_cost > 0:
+            console.print(f"\n[dim]Analysis cost: ${result.total_cost:.4f}[/dim]")
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted.[/yellow]")
+        sys.exit(2)
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         sys.exit(2)
@@ -910,18 +1079,20 @@ def task_update(spec_dir: str, task_id: int, new_status: str, note: str) -> None
 
 def _resolve_and_parse_sources(
     sources: tuple[str, ...] | list[str],
+    config: IntakeConfig | None = None,
 ) -> list[ParsedContent]:
     """Resolve source URIs and parse each source.
 
-    Handles four source types:
+    Handles five source types:
     - stdin ('-'): passed directly to the parser registry
     - file: passed directly to the parser registry
     - url (http/https): passed directly to the parser registry (UrlParser)
-    - scheme URIs (jira://, confluence://, github://): warns that connectors
-      are not yet available (Phase 2)
+    - scheme URIs (jira://, confluence://, github://): fetched via connectors
+    - text: inline free text
 
     Args:
         sources: Raw source strings from the CLI.
+        config: IntakeConfig for connector configuration injection.
 
     Returns:
         List of ParsedContent objects.
@@ -937,10 +1108,19 @@ def _resolve_and_parse_sources(
         uri = parse_source(src)
 
         if uri.type in ("jira", "confluence", "github"):
-            console.print(
-                f"  [yellow]Warning:[/yellow] {uri.type}:// connector not available yet. "
-                f"Use a local export file instead."
-            )
+            fetched = _fetch_connector_source(uri.raw, uri.type, config)
+            for fs in fetched:
+                try:
+                    parsed = registry.parse(fs.local_path)
+                    parsed_sources.append(parsed)
+                    console.print(
+                        f"  Parsed: {uri.raw} ({parsed.format}, {parsed.word_count} words)"
+                    )
+                except Exception as e:
+                    console.print(
+                        f"  [yellow]Warning:[/yellow] Could not parse fetched "
+                        f"content from {fs.original_uri}: {e}"
+                    )
             continue
 
         if uri.type == "url":
@@ -966,6 +1146,78 @@ def _resolve_and_parse_sources(
             console.print(f"  Parsed: {src} ({parsed.format}, {parsed.word_count} words)")
 
     return parsed_sources
+
+
+def _fetch_connector_source(
+    uri: str,
+    scheme: str,
+    config: IntakeConfig | None = None,
+) -> list[FetchedSource]:
+    """Fetch a remote source using the appropriate connector.
+
+    Args:
+        uri: Full source URI (e.g. ``jira://PROJ-123``).
+        scheme: URI scheme type (``jira``, ``confluence``, ``github``).
+        config: IntakeConfig for injecting connector settings.
+
+    Returns:
+        List of FetchedSource objects with local temp file paths.
+    """
+    import asyncio
+
+    from intake.connectors.base import ConnectorError, ConnectorRegistry
+    from intake.plugins.discovery import create_registry as create_plugin_registry
+    from intake.plugins.protocols import ConnectorPlugin
+
+    # Build connector registry from plugin discovery
+    plugin_registry = create_plugin_registry()
+    connector_registry = ConnectorRegistry()
+    for name, connector_obj in plugin_registry.get_connectors().items():
+        if not isinstance(connector_obj, ConnectorPlugin):
+            continue
+        # Inject config from .intake.yaml if available
+        if config is not None:
+            _inject_connector_config(connector_obj, name, config)
+        connector_registry.register(name, connector_obj)
+
+    # Find connector for the URI
+    connector = connector_registry.find_for_uri(uri)
+    if connector is None:
+        console.print(
+            f"  [yellow]Warning:[/yellow] No connector available for {scheme}:// URIs. "
+            f"Install with: pip install intake-ai-cli[connectors]"
+        )
+        return []
+
+    try:
+        return asyncio.run(connector.fetch(uri))
+    except ConnectorError as e:
+        console.print(f"  [red]Connector error:[/red] {e}")
+        return []
+
+
+def _inject_connector_config(
+    connector: object,
+    name: str,
+    config: IntakeConfig,
+) -> None:
+    """Inject configuration from IntakeConfig into a connector instance.
+
+    Maps connector names to their corresponding config sections and
+    sets the ``_config`` attribute if the connector supports it.
+
+    Args:
+        connector: Connector instance to configure.
+        name: Connector name (e.g. "jira", "confluence", "github").
+        config: Root intake configuration.
+    """
+    config_map = {
+        "jira": config.connectors.jira,
+        "confluence": config.connectors.confluence,
+        "github": config.connectors.github,
+    }
+    if name in config_map and hasattr(connector, "_config"):
+        connector._config = config_map[name]
 
 
 def _generate_spec(

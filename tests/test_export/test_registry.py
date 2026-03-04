@@ -66,7 +66,14 @@ def test_plugin_discovery_finds_exporters() -> None:
 def test_manual_fallback_works() -> None:
     """Manual fallback creates the same set of exporters."""
     registry = create_default_registry(use_plugins=False)
-    assert registry.available_formats == ["architect", "generic"]
+    assert registry.available_formats == [
+        "architect",
+        "claude-code",
+        "copilot",
+        "cursor",
+        "generic",
+        "kiro",
+    ]
 
 
 def test_plugin_and_manual_produce_same_formats() -> None:

@@ -115,6 +115,7 @@ class DoctorChecks:
         results.append(self._check_api_key())
         results.extend(self._check_optional_deps())
         results.append(self._check_config(config_path))
+        results.extend(self._check_connectors(config_path))
         logger.info(
             "doctor_checks_complete",
             total=len(results),
@@ -257,6 +258,120 @@ class DoctorChecks:
                 message=f"Invalid YAML in {config_path}: {e}",
                 fix_hint="Check YAML syntax and indentation.",
             )
+
+    def _check_connectors(self, config_path: str) -> list[DiagnosticResult]:
+        """Check connector credentials when connectors are configured.
+
+        Only checks credentials for connectors that have non-default URLs
+        or tokens configured in .intake.yaml.
+
+        Args:
+            config_path: Path to the config file.
+
+        Returns:
+            List of DiagnosticResult for each configured connector.
+        """
+        results: list[DiagnosticResult] = []
+        path = Path(config_path)
+        if not path.exists():
+            return results
+
+        try:
+            raw = path.read_text(encoding="utf-8")
+            data = yaml.safe_load(raw)
+            if not isinstance(data, dict):
+                return results
+        except yaml.YAMLError:
+            return results
+
+        connectors = data.get("connectors", {})
+        if not isinstance(connectors, dict):
+            return results
+
+        # Check Jira credentials
+        jira_cfg = connectors.get("jira", {})
+        if isinstance(jira_cfg, dict) and jira_cfg.get("url"):
+            token_env = jira_cfg.get("token_env", "JIRA_API_TOKEN")
+            email_env = jira_cfg.get("email_env", "JIRA_EMAIL")
+            token_set = bool(os.environ.get(token_env))
+            email_set = bool(os.environ.get(email_env))
+            if token_set and email_set:
+                results.append(
+                    DiagnosticResult(
+                        name="Jira connector",
+                        passed=True,
+                        message=f"Credentials set ({token_env}, {email_env})",
+                    )
+                )
+            else:
+                missing = []
+                if not token_set:
+                    missing.append(token_env)
+                if not email_set:
+                    missing.append(email_env)
+                results.append(
+                    DiagnosticResult(
+                        name="Jira connector",
+                        passed=False,
+                        message=f"Missing credentials: {', '.join(missing)}",
+                        fix_hint=f"Set environment variables: {', '.join(missing)}",
+                    )
+                )
+
+        # Check Confluence credentials
+        confluence_cfg = connectors.get("confluence", {})
+        if isinstance(confluence_cfg, dict) and confluence_cfg.get("url"):
+            token_env = confluence_cfg.get("token_env", "CONFLUENCE_API_TOKEN")
+            email_env = confluence_cfg.get("email_env", "CONFLUENCE_EMAIL")
+            token_set = bool(os.environ.get(token_env))
+            email_set = bool(os.environ.get(email_env))
+            if token_set and email_set:
+                results.append(
+                    DiagnosticResult(
+                        name="Confluence connector",
+                        passed=True,
+                        message=f"Credentials set ({token_env}, {email_env})",
+                    )
+                )
+            else:
+                missing = []
+                if not token_set:
+                    missing.append(token_env)
+                if not email_set:
+                    missing.append(email_env)
+                results.append(
+                    DiagnosticResult(
+                        name="Confluence connector",
+                        passed=False,
+                        message=f"Missing credentials: {', '.join(missing)}",
+                        fix_hint=f"Set environment variables: {', '.join(missing)}",
+                    )
+                )
+
+        # Check GitHub credentials
+        github_cfg = connectors.get("github", {})
+        if isinstance(github_cfg, dict):
+            token_env = github_cfg.get("token_env", "GITHUB_TOKEN")
+            if os.environ.get(token_env):
+                results.append(
+                    DiagnosticResult(
+                        name="GitHub connector",
+                        passed=True,
+                        message=f"Token set ({token_env})",
+                    )
+                )
+            elif github_cfg.get("token_env"):
+                # Only warn if explicitly configured
+                results.append(
+                    DiagnosticResult(
+                        name="GitHub connector",
+                        passed=False,
+                        message=f"Missing token: {token_env}",
+                        fix_hint=f"Set environment variable: {token_env}",
+                    )
+                )
+
+        return results
 
     def _fix_install_package(self, description: str) -> FixResult:
         """Attempt to install a missing Python package via pip.

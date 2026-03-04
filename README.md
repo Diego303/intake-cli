@@ -27,7 +27,7 @@ intake processes requirements through a 5-phase pipeline:
 2. **Analyze** — LLM extracts structured requirements, detects conflicts, deduplicates
 3. **Generate** — Produce 6 spec files + `spec.lock.yaml`
 4. **Verify** — Run executable acceptance checks against the implementation
-5. **Export** — Generate agent-ready output (architect, Claude Code, Cursor, generic)
+5. **Export** — Generate agent-ready output (Claude Code, Cursor, Kiro, Copilot, architect, generic)
 
 ### The 6 Spec Files
 
@@ -84,6 +84,21 @@ intake init "Fix login bug" -s notes.txt --mode quick
 # Fetch requirements from a URL
 intake init "API review" -s https://wiki.company.com/rfc/auth
 
+# Fetch from live APIs (requires credentials)
+intake init "Sprint planning" -s jira://PROJ/sprint/42
+intake init "Wiki review" -s confluence://SPACE/Page-Title
+intake init "Bug triage" -s github://org/repo/issues?labels=bug
+
+# Export for specific agents
+intake init "Payments" -s reqs.pdf --format claude-code
+intake export ./specs/auth -f cursor -o .
+intake export ./specs/auth -f kiro -o .
+intake export ./specs/auth -f copilot -o .
+
+# Analyze verification failures and get fix suggestions
+intake feedback ./specs/auth-oauth2
+intake feedback ./specs/auth -r report.json --apply --agent-format claude-code
+
 # List discovered plugins
 intake plugins list
 
@@ -109,8 +124,43 @@ intake task update ./specs/auth-oauth2 1 done --note "Implemented and tested"
 | URLs | `http://`, `https://` | Fetches page, converts HTML → Markdown |
 | Slack export | `.json` (auto-detected) | Messages, threads, decisions, action items |
 | GitHub Issues | `.json` (auto-detected) | Issues, labels, comments, cross-references |
+| **Jira API** | `jira://PROJ-123` | Live issue fetching via REST API |
+| **Confluence API** | `confluence://SPACE/Title` | Live page fetching via REST API |
+| **GitHub API** | `github://org/repo/issues/42` | Live issue fetching via PyGithub |
 
 Format is auto-detected by file extension and content inspection. Jira, Slack, and GitHub Issues JSON exports are distinguished automatically from generic JSON files. Confluence HTML is distinguished from generic HTML.
+
+### Live API Connectors
+
+Connect directly to project management tools (requires credentials):
+
+```bash
+# Jira: single issue, multiple, JQL, sprint
+intake init "Sprint" -s jira://PROJ-123
+intake init "Sprint" -s "jira://PROJ?jql=sprint=42"
+
+# Confluence: page by ID, by space/title, CQL search
+intake init "Docs" -s confluence://page/123456
+intake init "Docs" -s confluence://SPACE/Page-Title
+
+# GitHub: single/multiple issues, filtered queries
+intake init "Bugs" -s github://org/repo/issues/42
+intake init "Bugs" -s "github://org/repo/issues?labels=bug&state=open"
+```
+
+Configure credentials in `.intake.yaml`:
+
+```yaml
+connectors:
+  jira:
+    url: https://your-org.atlassian.net
+    # Set JIRA_API_TOKEN and JIRA_EMAIL env vars
+  confluence:
+    url: https://your-org.atlassian.net/wiki
+    # Set CONFLUENCE_API_TOKEN and CONFLUENCE_EMAIL env vars
+  github:
+    # Set GITHUB_TOKEN env var
+```
 
 ---
 
@@ -127,7 +177,9 @@ Format is auto-detected by file extension and content inspection. Jira, Slack, a
 | `intake diff` | Compare two spec versions | **Available** |
 | `intake doctor` | Check environment and configuration health | **Available** |
 | `intake doctor --fix` | Auto-fix environment issues (install deps, create config) | **Available** |
-| `intake plugins list` | List all discovered plugins (parsers, exporters) | **Available** |
+| `intake feedback` | Analyze verification failures and suggest fixes | **Available** |
+| `intake feedback --apply` | Auto-apply suggested spec amendments | **Available** |
+| `intake plugins list` | List all discovered plugins (parsers, exporters, connectors) | **Available** |
 | `intake plugins check` | Validate plugin compatibility | **Available** |
 | `intake task list` | List tasks from a spec with current status | **Available** |
 | `intake task update` | Update a task's status (pending/in_progress/done/blocked) | **Available** |
@@ -157,7 +209,19 @@ spec:
   auto_mode: true              # auto-detect quick/standard/enterprise
 
 export:
-  default_format: generic      # architect | claude-code | cursor | kiro | generic
+  default_format: generic      # architect | claude-code | cursor | kiro | copilot | generic
+
+feedback:
+  auto_amend_spec: false       # Auto-apply spec amendments from feedback
+  max_suggestions: 10          # Max suggestions per analysis
+  include_code_snippets: true  # Include code examples in suggestions
+
+connectors:
+  jira:
+    url: https://your-org.atlassian.net
+  confluence:
+    url: https://your-org.atlassian.net/wiki
+  github: {}                   # Uses GITHUB_TOKEN env var
 ```
 
 ### Presets
@@ -197,7 +261,7 @@ See the [`examples/`](examples/) directory for ready-to-run scenarios:
 src/intake/
 ├── cli.py                  # Click CLI — thin adapter, no logic
 ├── config/                 # Pydantic v2 models, presets, layered loader
-│   ├── schema.py           #   7 config models (LLM, Project, Spec, Verification, Export, Security, Connectors)
+│   ├── schema.py           #   9 config models (LLM, Project, Spec, Verification, Export, Security, Connectors, Feedback)
 │   ├── presets.py           #   minimal / standard / enterprise presets
 │   ├── loader.py            #   Layered merge: defaults → preset → YAML → CLI
 │   └── defaults.py          #   Centralized constants
@@ -205,8 +269,11 @@ src/intake/
 │   ├── protocols.py         #   V2 protocols: ParserPlugin, ExporterPlugin, ConnectorPlugin
 │   ├── discovery.py         #   Entry point scanning via importlib.metadata
 │   └── hooks.py             #   Pipeline hook system (HookManager)
-├── connectors/             # Connector infrastructure (Phase 2 prep)
-│   └── base.py              #   ConnectorRegistry, ConnectorError
+├── connectors/             # Live API connectors
+│   ├── base.py              #   ConnectorRegistry, ConnectorError
+│   ├── jira_api.py          #   Jira REST API (single/multi/JQL/sprint)
+│   ├── confluence_api.py    #   Confluence REST API (page/space/CQL)
+│   └── github_api.py        #   GitHub API via PyGithub (issues/filters)
 ├── ingest/                 # Phase 1 — 11 parsers, registry, auto-detection
 │   ├── base.py              #   ParsedContent dataclass + Parser Protocol
 │   ├── registry.py          #   Auto-detection + plugin discovery + parser dispatch
@@ -239,24 +306,41 @@ src/intake/
 ├── verify/                 # Phase 4 — Acceptance check engine
 │   ├── engine.py           #   4 check types: command, files_exist, pattern_*
 │   └── reporter.py         #   Terminal (Rich), JSON, JUnit XML reporters
-├── export/                 # Phase 5 — Agent-ready output
+├── export/                 # Phase 5 — Agent-ready output (6 exporters)
 │   ├── base.py             #   Exporter Protocol
 │   ├── registry.py         #   Plugin discovery + format-based dispatch
+│   ├── _helpers.py         #   Shared utilities (parse_tasks, load_checks, etc.)
+│   ├── claude_code.py      #   CLAUDE.md + tasks + verify.sh
+│   ├── cursor.py           #   .cursor/rules/intake-spec.mdc
+│   ├── kiro.py             #   Kiro-native requirements/design/tasks
+│   ├── copilot.py          #   .github/copilot-instructions.md
 │   ├── architect.py        #   pipeline.yaml generation
 │   └── generic.py          #   SPEC.md + verify.sh generation
 ├── diff/                   # Spec comparison
 │   └── differ.py           #   Compare two specs by requirement/task IDs
+├── feedback/               # Feedback loop (analyze failures, suggest fixes)
+│   ├── analyzer.py         #   LLM-based failure analysis
+│   ├── prompts.py          #   Feedback analysis prompt
+│   ├── suggestions.py     #   Multi-format suggestion formatter
+│   └── spec_updater.py    #   Preview + apply spec amendments
 ├── doctor/                 # Environment health checks
-│   └── checks.py            #   Python, API keys, deps, config validation
+│   └── checks.py            #   Python, API keys, deps, connectors, config validation
 ├── llm/                    # LiteLLM wrapper (used by analyze/ only)
 │   └── adapter.py           #   Async completion, retry, cost tracking, budget
-├── templates/              # Jinja2 templates for spec generation
+├── templates/              # Jinja2 templates (15 total)
 │   ├── requirements.md.j2   #   FR, NFR, conflicts, open questions
 │   ├── design.md.j2         #   Components, files, tech decisions
 │   ├── tasks.md.j2          #   Task summary + status + detailed sections
 │   ├── acceptance.yaml.j2   #   Executable acceptance checks
 │   ├── context.md.j2        #   Project context for agents
-│   └── sources.md.j2        #   Source traceability mapping
+│   ├── sources.md.j2        #   Source traceability mapping
+│   ├── claude_md.j2         #   Claude Code CLAUDE.md spec section
+│   ├── claude_task.md.j2    #   Claude Code per-task file
+│   ├── verify_sh.j2         #   Claude Code verification script
+│   ├── cursor_rules.mdc.j2  #   Cursor rules file
+│   ├── kiro_*.md.j2         #   Kiro requirements/design/tasks (3 files)
+│   ├── copilot_instructions.md.j2  # Copilot instructions
+│   └── feedback.md.j2      #   Feedback results template
 └── utils/                  # Shared utilities
     ├── file_detect.py       #   Extension-based format detection
     ├── project_detect.py    #   Auto-detect tech stack from project files
@@ -269,7 +353,7 @@ src/intake/
 **Key design principles:**
 
 - **Protocol over ABC** — All extension points use `typing.Protocol`
-- **Plugin-first architecture** — Parsers and exporters discovered via entry points, manual fallback
+- **Plugin-first architecture** — Parsers, exporters, and connectors discovered via entry points, manual fallback
 - **Dataclasses for pipeline data, Pydantic for config** — Never mixed
 - **Async only in analyze/** — Everything else is synchronous
 - **Offline mode** — Parsing, verification, export, diff, doctor all work without LLM
@@ -292,7 +376,41 @@ architect pipeline specs/auth-system/pipeline.yaml
 
 ```bash
 intake init "Payments" -s reqs.pdf --format claude-code
-# Generates CLAUDE.md + tasks + verify.sh
+# Generates CLAUDE.md + .intake/tasks/ + .intake/verify.sh + .intake/spec-summary.md
+```
+
+### With Cursor
+
+```bash
+intake export ./specs/auth -f cursor -o .
+# Generates .cursor/rules/intake-spec.mdc (auto-loaded by Cursor)
+```
+
+### With Kiro
+
+```bash
+intake export ./specs/auth -f kiro -o .
+# Generates requirements.md, design.md, tasks.md in Kiro native format
+```
+
+### With GitHub Copilot
+
+```bash
+intake export ./specs/auth -f copilot -o .
+# Generates .github/copilot-instructions.md (auto-loaded by Copilot)
+```
+
+### Feedback Loop
+
+```bash
+# Analyze why verification checks failed and get fix suggestions
+intake feedback ./specs/auth-oauth2
+
+# Use a previous report and auto-apply spec amendments
+intake feedback ./specs/auth -r report.json --apply
+
+# Get suggestions formatted for your agent
+intake feedback ./specs/auth --agent-format claude-code
 ```
 
 ### With CI/CD
@@ -326,7 +444,7 @@ ruff format src/ tests/
 mypy src/ --strict
 ```
 
-Current test suite: **492 tests**, **86% coverage**, **0 mypy --strict errors**, **0 ruff warnings**.
+Current test suite: **673 tests**, **0 mypy --strict errors**, **0 ruff warnings**.
 
 ### Implementation Status
 
@@ -336,12 +454,13 @@ Current test suite: **492 tests**, **86% coverage**, **0 mypy --strict errors**,
 | Phase 2 — Analyze | `analyze/` (orchestrator + 7 sub-modules + complexity) | Implemented |
 | Phase 3 — Generate | `generate/` (spec builder + adaptive builder + 6 templates + lock) | Implemented |
 | Phase 4 — Verify | `verify/` (engine + 3 reporters) | Implemented |
-| Phase 5 — Export | `export/` (architect + generic + plugin registry) | Implemented |
+| Phase 5 — Export | `export/` (6 exporters: claude-code, cursor, kiro, copilot, architect, generic) | Implemented |
 | Plugins | `plugins/` (protocols + discovery + hooks) | Implemented |
-| Connectors | `connectors/` (registry infrastructure, no concrete connectors) | Implemented |
+| Connectors | `connectors/` (Jira, Confluence, GitHub API connectors) | Implemented |
+| Feedback | `feedback/` (analyzer + suggestions + spec updater) | Implemented |
 | Standalone | `doctor/`, `config/`, `llm/`, `utils/` | Implemented |
 | Standalone | `diff/` (spec differ) | Implemented |
-| CLI | 13 commands/subcommands wired end-to-end | Implemented |
+| CLI | 15 commands/subcommands wired end-to-end | Implemented |
 
 ---
 

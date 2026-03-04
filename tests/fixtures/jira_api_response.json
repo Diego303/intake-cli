@@ -1,0 +1,32 @@
+{
+  "issues": [
+    {
+      "key": "PROJ-101",
+      "id": "10001",
+      "self": "https://mycompany.atlassian.net/rest/api/2/issue/10001",
+      "fields": {
+        "summary": "Implement user registration endpoint",
+        "description": "Create a POST /api/v1/register endpoint that accepts email and password.\n\nAcceptance Criteria:\n- Validate email format\n- Hash password with bcrypt\n- Return JWT token on success",
+        "priority": {"name": "High", "id": "2"},
+        "status": {"name": "To Do", "id": "10000"},
+        "labels": ["backend", "auth", "mvp"],
+        "assignee": {"displayName": "Jane Doe", "emailAddress": "jane@company.com"},
+        "issuelinks": [
+          {
+            "type": {"name": "Blocks", "inward": "is blocked by", "outward": "blocks"},
+            "outwardIssue": {"key": "PROJ-102", "fields": {"summary": "Login endpoint"}}
+          }
+        ],
+        "comment": {
+          "comments": [
+            {
+              "author": {"displayName": "Product Manager"},
+              "body": "Please ensure we support both email and username for registration.",
+              "created": "2025-01-15T10:30:00.000+0000"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
