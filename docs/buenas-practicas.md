@@ -369,6 +369,7 @@ intake descarga la pagina, convierte el HTML a Markdown, y lo procesa como cualq
 5. Implementar (manualmente o con agente IA)
    - intake export specs/feature/ -f architect
    - intake task update specs/feature/ 1 in_progress
+   - intake watch specs/feature/ -p .  (verificacion continua)
            |
 6. Seguir progreso
    - intake task list specs/feature/
@@ -381,3 +382,43 @@ intake descarga la pagina, convierte el HTML a Markdown, y lo procesa como cualq
 ```
 
 Para patrones de trabajo por tamano de equipo (individual, equipo, empresa), ver [Flujos de trabajo](flujos-trabajo.md).
+
+---
+
+## Usar el servidor MCP
+
+Si trabajas con agentes IA compatibles con MCP (Claude Code, Claude Desktop, etc.), el servidor MCP de intake permite que el agente acceda directamente a las specs:
+
+```bash
+# Iniciar el servidor
+intake mcp serve --specs-dir ./specs
+```
+
+El agente puede entonces usar tools como `intake_verify`, `intake_get_tasks`, `intake_update_task` sin necesidad de exportar primero. El prompt `implement_next_task` le da al agente el contexto completo para empezar a implementar.
+
+Ver [MCP Server](mcp-server.md) para configuracion y uso.
+
+---
+
+## Verificacion continua con watch
+
+Durante el desarrollo, usa `intake watch` para re-verificar automaticamente cada vez que guardas un archivo:
+
+```bash
+intake watch specs/mi-feature/ -p .
+```
+
+Esto es especialmente util cuando:
+
+- Estas implementando multiples tareas de una spec
+- Quieres feedback inmediato sobre si los checks pasan
+- Trabajas en pair programming con un agente IA
+
+Puedes filtrar por tags para solo ejecutar un subconjunto de checks:
+
+```bash
+# Solo tests y seguridad
+intake watch specs/mi-feature/ -p . -t tests -t security
+```
+
+Ver [Watch Mode](watch-mode.md) para configuracion y detalles.

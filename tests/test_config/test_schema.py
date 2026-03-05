@@ -11,10 +11,12 @@ from intake.config.schema import (
     IntakeConfig,
     JiraConfig,
     LLMConfig,
+    MCPConfig,
     ProjectConfig,
     SecurityConfig,
     SpecConfig,
     VerificationConfig,
+    WatchConfig,
 )
 
 
@@ -124,6 +126,44 @@ class TestFeedbackConfig:
         assert config.max_suggestions == 5
 
 
+class TestMCPConfig:
+    def test_defaults(self) -> None:
+        config = MCPConfig()
+        assert config.specs_dir == "./specs"
+        assert config.project_dir == "."
+        assert config.transport == "stdio"
+        assert config.sse_port == 8080
+
+    def test_custom_values(self) -> None:
+        config = MCPConfig(
+            specs_dir="/my/specs",
+            transport="sse",
+            sse_port=9090,
+        )
+        assert config.specs_dir == "/my/specs"
+        assert config.transport == "sse"
+        assert config.sse_port == 9090
+
+
+class TestWatchConfig:
+    def test_defaults(self) -> None:
+        config = WatchConfig()
+        assert config.debounce_seconds == 2.0
+        assert "*.pyc" in config.ignore_patterns
+        assert "__pycache__" in config.ignore_patterns
+        assert ".git" in config.ignore_patterns
+        assert "node_modules" in config.ignore_patterns
+        assert ".intake" in config.ignore_patterns
+
+    def test_custom_values(self) -> None:
+        config = WatchConfig(
+            debounce_seconds=5.0,
+            ignore_patterns=["*.log", "dist/"],
+        )
+        assert config.debounce_seconds == 5.0
+        assert config.ignore_patterns == ["*.log", "dist/"]
+
+
 class TestIntakeConfig:
     def test_defaults(self) -> None:
         config = IntakeConfig()
@@ -135,6 +175,8 @@ class TestIntakeConfig:
         assert isinstance(config.security, SecurityConfig)
         assert isinstance(config.connectors, ConnectorsConfig)
         assert isinstance(config.feedback, FeedbackConfig)
+        assert isinstance(config.mcp, MCPConfig)
+        assert isinstance(config.watch, WatchConfig)
 
     def test_nested_override(self) -> None:
         config = IntakeConfig(llm=LLMConfig(model="gpt-4o"))
@@ -152,3 +194,13 @@ class TestIntakeConfig:
     def test_feedback_nested(self) -> None:
         config = IntakeConfig(feedback=FeedbackConfig(auto_amend_spec=True))
         assert config.feedback.auto_amend_spec is True
+
+    def test_mcp_nested_override(self) -> None:
+        config = IntakeConfig(mcp=MCPConfig(specs_dir="/custom/specs"))
+        assert config.mcp.specs_dir == "/custom/specs"
+        assert config.mcp.transport == "stdio"
+
+    def test_watch_nested_override(self) -> None:
+        config = IntakeConfig(watch=WatchConfig(debounce_seconds=10.0))
+        assert config.watch.debounce_seconds == 10.0
+        assert ".git" in config.watch.ignore_patterns

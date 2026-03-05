@@ -139,6 +139,40 @@ class FeedbackConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# MCP Server configuration
+# ---------------------------------------------------------------------------
+
+
+class MCPConfig(BaseModel):
+    """MCP (Model Context Protocol) server configuration."""
+
+    specs_dir: str = "./specs"
+    project_dir: str = "."
+    transport: Literal["stdio", "sse"] = "stdio"
+    sse_port: int = 8080
+
+
+# ---------------------------------------------------------------------------
+# Watch mode configuration
+# ---------------------------------------------------------------------------
+
+
+class WatchConfig(BaseModel):
+    """Watch mode configuration for file monitoring."""
+
+    debounce_seconds: float = 2.0
+    ignore_patterns: list[str] = Field(
+        default_factory=lambda: [
+            "*.pyc",
+            "__pycache__",
+            ".git",
+            "node_modules",
+            ".intake",
+        ]
+    )
+
+
+# ---------------------------------------------------------------------------
 # Root configuration
 # ---------------------------------------------------------------------------
 
@@ -158,3 +192,5 @@ class IntakeConfig(BaseModel):
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     connectors: ConnectorsConfig = Field(default_factory=ConnectorsConfig)
     feedback: FeedbackConfig = Field(default_factory=FeedbackConfig)
+    mcp: MCPConfig = Field(default_factory=MCPConfig)
+    watch: WatchConfig = Field(default_factory=WatchConfig)

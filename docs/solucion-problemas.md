@@ -24,6 +24,8 @@ Esto verifica:
 | markdownify | Paquete instalado | Si |
 | litellm | Paquete instalado | Si |
 | jinja2 | Paquete instalado | Si |
+| mcp package | Paquete `mcp` instalado (si mcp configurado) | Si |
+| watchfiles | Paquete `watchfiles` instalado (si watch configurado) | Si |
 | Config file | `.intake.yaml` valido | Si |
 | Jira credentials | `JIRA_API_TOKEN` + `JIRA_EMAIL` (si jira configurado) | No |
 | Confluence credentials | `CONFLUENCE_API_TOKEN` + `CONFLUENCE_EMAIL` (si confluence configurado) | No |
@@ -413,6 +415,76 @@ intake plugins check     # Reporta FAIL con detalles
 
 ---
 
+### Servidor MCP no arranca
+
+**Error:**
+```
+ImportError: MCP server requires the mcp package. Install with: pip install intake-ai-cli[mcp]
+```
+
+**Solucion:**
+
+```bash
+pip install "intake-ai-cli[mcp]"
+```
+
+Si usas transporte SSE y falta `starlette` o `uvicorn`:
+
+```bash
+pip install starlette uvicorn
+```
+
+**Puerto SSE ocupado:**
+```
+Error: [Errno 98] Address already in use
+```
+
+Cambiar el puerto:
+
+```bash
+intake mcp serve --transport sse --port 9090
+```
+
+O en `.intake.yaml`:
+
+```yaml
+mcp:
+  sse_port: 9090
+```
+
+---
+
+### Watch mode no arranca
+
+**Error:**
+```
+ImportError: Watch mode requires the watchfiles package. Install with: pip install intake-ai-cli[watch]
+```
+
+**Solucion:**
+
+```bash
+pip install "intake-ai-cli[watch]"
+```
+
+**Spec directory no encontrado:**
+```
+Watch error: Spec directory not found: specs/mi-feature
+  Hint: Run 'intake init' first to generate a spec.
+```
+
+Verificar que el directorio de la spec existe y contiene `acceptance.yaml`.
+
+**acceptance.yaml no encontrado:**
+```
+Watch error: acceptance.yaml not found in specs/mi-feature
+  Hint: Run 'intake init' to generate acceptance.yaml.
+```
+
+Regenerar la spec con `intake init` o verificar que la spec fue generada en modo `standard` o `enterprise` (el modo `quick` no genera `acceptance.yaml`).
+
+---
+
 ### acceptance.yaml invalido
 
 **Error:**
@@ -453,6 +525,8 @@ Solo para `intake init` y `intake add` (que requieren llamadas al LLM). Todo lo 
 - `intake show` / `intake list` — lee archivos locales
 - `intake diff` — compara archivos locales
 - `intake doctor` — verifica el entorno local
+- `intake mcp serve` — ejecuta el servidor MCP localmente
+- `intake watch` — monitorea archivos y re-verifica localmente
 
 ### Puedo usar modelos locales?
 

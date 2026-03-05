@@ -35,6 +35,9 @@ connectors/               <- 3 conectores API: Jira, Confluence, GitHub (async f
   |
 feedback/                 <- Feedback loop: analisis de fallos + enmiendas a la spec (requiere LLM)
 
+mcp/                      <- Servidor MCP: tools, resources, prompts (requiere LLM para feedback)
+watch/                    <- Watch mode: monitoreo de archivos + re-verificacion (usa verify/)
+
 diff/                     <- Standalone: compara directorios de specs
 doctor/                   <- Standalone: checks del entorno + validacion de credenciales
 llm/                      <- Compartido: usado por analyze/ y feedback/
@@ -57,7 +60,7 @@ Excepciones documentadas:
 src/intake/
 ├── cli.py                  # Click CLI — adaptador delgado, sin logica
 ├── config/                 # Modelos Pydantic v2, presets, loader
-│   ├── schema.py           #   9 modelos de config (LLM, Project, Spec, Verification, Export, Security, Connectors, Feedback, Intake)
+│   ├── schema.py           #   11 modelos de config (LLM, Project, Spec, Verification, Export, Security, Connectors, Feedback, MCP, Watch, Intake)
 │   ├── presets.py           #   minimal / standard / enterprise
 │   ├── loader.py            #   Merge por capas: defaults -> preset -> YAML -> CLI
 │   └── defaults.py          #   Constantes centralizadas
@@ -123,6 +126,15 @@ src/intake/
 │   ├── prompts.py           #   FEEDBACK_ANALYSIS_PROMPT
 │   ├── suggestions.py       #   SuggestionFormatter: generic, claude-code, cursor
 │   └── spec_updater.py      #   SpecUpdater: preview + apply de enmiendas a la spec
+├── mcp/                    # Servidor MCP (Model Context Protocol)
+│   ├── __init__.py         #   MCPError + re-exports (create_server, run_stdio, run_sse)
+│   ├── server.py           #   Creacion del servidor + transportes stdio/SSE
+│   ├── tools.py            #   7 tools: show, context, tasks, update, verify, feedback, list
+│   ├── resources.py        #   Recursos dinamicos: intake://specs/{name}/{section}
+│   └── prompts.py          #   Templates: implement_next_task, verify_and_fix
+├── watch/                  # Watch mode (monitoreo + re-verificacion)
+│   ├── __init__.py         #   WatchError exception
+│   └── watcher.py          #   SpecWatcher con watchfiles (Rust-based)
 ├── templates/              # 15 templates Jinja2 (6 spec + 3 claude-code + 3 kiro + 1 cursor + 1 copilot + 1 feedback)
 │   ├── requirements.md.j2
 │   ├── design.md.j2
@@ -264,6 +276,10 @@ FeedbackError
 
 SpecUpdateError
 
+MCPError
+
+WatchError
+
 TaskStateError
 ```
 
@@ -292,6 +308,8 @@ TaskStateError
 |---------|---------|-----|
 | `atlassian-python-api` | >=3.40 | Conectores Jira y Confluence |
 | `PyGithub` | >=2.0 | Conector GitHub |
+| `mcp` | >=1.0 | Servidor MCP (tools, resources, prompts) |
+| `watchfiles` | >=1.0 | Watch mode (monitoreo de archivos, Rust-based) |
 
 ---
 

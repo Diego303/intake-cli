@@ -1077,6 +1077,148 @@ def task_update(spec_dir: str, task_id: int, new_status: str, note: str) -> None
         sys.exit(2)
 
 
+# ---------------------------------------------------------------------------
+# MCP Server commands
+# ---------------------------------------------------------------------------
+
+
+@main.group()
+def mcp() -> None:
+    """MCP server commands."""
+
+
+@mcp.command("serve")
+@click.option(
+    "--transport",
+    type=click.Choice(["stdio", "sse"]),
+    default="stdio",
+    help="Transport protocol.",
+)
+@click.option("--port", default=8080, help="Port for SSE transport.")
+@click.option(
+    "--specs-dir",
+    default="./specs",
+    type=click.Path(),
+    help="Base directory for specs.",
+)
+@click.option(
+    "--project-dir",
+    default=".",
+    type=click.Path(),
+    help="Project directory for verification.",
+)
+def mcp_serve(transport: str, port: int, specs_dir: str, project_dir: str) -> None:
+    """Start the MCP server.
+
+    Exposes intake tools, resources, and prompts via MCP protocol.
+    Agents (Claude Code, Cursor, etc.) can connect and consume specs
+    in real time during development.
+
+    Examples:
+
+      intake mcp serve
+
+      intake mcp serve --transport sse --port 8080
+    """
+    try:
+        if transport == "stdio":
+            from intake.mcp.server import run_stdio
+
+            console.print("[bold]Starting MCP server[/bold] (stdio transport)...")
+            asyncio.run(run_stdio(specs_dir, project_dir))
+        else:
+            from intake.mcp.server import run_sse
+
+            console.print(f"[bold]Starting MCP server[/bold] (SSE on port {port})...")
+            asyncio.run(run_sse(specs_dir, project_dir, port=port))
+
+    except ImportError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        console.print("Install MCP support with: pip install intake-ai-cli[mcp]")
+        sys.exit(2)
+    except KeyboardInterrupt:
+        console.print("\n[bold]MCP server stopped.[/bold]")
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(2)
+
+
+# ---------------------------------------------------------------------------
+# Watch mode command
+# ---------------------------------------------------------------------------
+
+
+@main.command()
+@click.argument("spec_dir", type=click.Path(exists=True))
+@click.option(
+    "--project-dir",
+    "-p",
+    default=".",
+    type=click.Path(exists=True),
+    help="Project directory to watch.",
+)
+@click.option("--tags", "-t", multiple=True, help="Only run checks with these tags.")
+@click.option(
+    "--debounce",
+    default=2.0,
+    type=float,
+    help="Seconds to wait after last change before re-checking.",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Verbose output.")
+def watch(
+    spec_dir: str,
+    project_dir: str,
+    tags: tuple[str, ...],
+    debounce: float,
+    verbose: bool,
+) -> None:
+    """Watch project files and re-run checks on change.
+
+    Monitors the project directory for file changes and automatically
+    re-runs the verification checks from the spec's acceptance.yaml.
+
+    Examples:
+
+      intake watch ./specs/auth -p ./my-project
+
+      intake watch ./specs/auth -p . --tags test --debounce 5
+    """
+    setup_logging(verbose=verbose)
+
+    try:
+        config = load_config()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(2)
+
+    # Override debounce from CLI flag
+    watch_config = config.watch.model_copy(update={"debounce_seconds": debounce})
+
+    try:
+        from intake.watch.watcher import SpecWatcher
+
+        watcher = SpecWatcher(
+            spec_dir=spec_dir,
+            project_dir=project_dir,
+            config=watch_config,
+            tags=list(tags) if tags else None,
+        )
+        watcher.run()
+
+    except ImportError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        console.print("Install watch support with: pip install intake-ai-cli[watch]")
+        sys.exit(2)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(2)
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
 def _resolve_and_parse_sources(
     sources: tuple[str, ...] | list[str],
     config: IntakeConfig | None = None,

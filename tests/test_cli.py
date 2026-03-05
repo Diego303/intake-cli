@@ -18,7 +18,7 @@ class TestCLI:
         runner = CliRunner()
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
-        assert "0.3.0" in result.output
+        assert "0.4.0" in result.output
 
     def test_help(self) -> None:
         runner = CliRunner()
@@ -551,6 +551,67 @@ class TestFeedbackCommand:
             ["feedback", ".", "--agent-format", "invalid-format"],
         )
         assert result.exit_code == 2
+
+
+class TestMCPCommand:
+    def test_mcp_help(self) -> None:
+        """mcp --help shows subcommands."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["mcp", "--help"])
+        assert result.exit_code == 0
+        assert "serve" in result.output
+
+    def test_mcp_serve_help(self) -> None:
+        """mcp serve --help shows options."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["mcp", "serve", "--help"])
+        assert result.exit_code == 0
+        assert "--transport" in result.output
+        assert "--port" in result.output
+        assert "--specs-dir" in result.output
+        assert "--project-dir" in result.output
+
+    def test_mcp_serve_help_shows_transports(self) -> None:
+        """mcp serve --help lists available transports."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["mcp", "serve", "--help"])
+        assert "stdio" in result.output
+        assert "sse" in result.output
+
+    def test_mcp_serve_help_shows_examples(self) -> None:
+        """mcp serve --help includes usage examples."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["mcp", "serve", "--help"])
+        assert "intake mcp serve" in result.output
+
+
+class TestWatchCommand:
+    def test_watch_help(self) -> None:
+        """watch --help shows options."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["watch", "--help"])
+        assert result.exit_code == 0
+        assert "--project-dir" in result.output
+        assert "--tags" in result.output
+        assert "--debounce" in result.output
+
+    def test_watch_missing_spec_dir(self) -> None:
+        """watch errors when spec_dir doesn't exist."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["watch", "/nonexistent/path"])
+        assert result.exit_code == 2
+
+    def test_watch_help_shows_verbose(self) -> None:
+        """watch --help shows --verbose option."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["watch", "--help"])
+        assert "--verbose" in result.output
+
+    def test_watch_help_shows_examples(self) -> None:
+        """watch --help includes usage examples."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["watch", "--help"])
+        assert "intake watch" in result.output
 
 
 class TestExportNewFormats:

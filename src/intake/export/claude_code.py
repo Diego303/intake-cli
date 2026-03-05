@@ -44,7 +44,7 @@ class ClaudeCodeExporter:
         """Plugin metadata."""
         return PluginMeta(
             name="claude-code",
-            version="0.3.0",
+            version="0.4.0",
             description="Export spec for Claude Code",
         )
 
