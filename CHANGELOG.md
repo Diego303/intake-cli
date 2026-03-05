@@ -5,6 +5,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-05
+
+### Added
+
+#### MCP (Model Context Protocol) server
+
+- **MCP server module** (`mcp/`): Full MCP server implementation with stdio and SSE transports. Requires `pip install intake-ai-cli[mcp]`.
+- **`create_server()`** (`mcp/server.py`): Creates and configures the MCP server with all tools, resources, and prompts registered. `MCP_SERVER_NAME = "intake-spec"`.
+- **`run_stdio()`** and **`run_sse()`** (`mcp/server.py`): Two transport modes — stdio for CLI agent integration, SSE (HTTP) for browser/IDE integration via starlette + uvicorn.
+- **7 MCP tools** (`mcp/tools.py`):
+  - `intake_show`: Show spec summary with truncated file content (MAX_SECTION_LENGTH = 3000).
+  - `intake_get_context`: Read `context.md` for a spec.
+  - `intake_get_tasks`: List tasks with status filtering (all/pending/in_progress/done/blocked).
+  - `intake_update_task`: Update task status with optional note.
+  - `intake_verify`: Run acceptance checks with optional tag filtering.
+  - `intake_feedback`: Run verification + analyze failures.
+  - `intake_list_specs`: List available specs (filters directories without `requirements.md`).
+- **MCP resources** (`mcp/resources.py`): Dynamic spec file resources via `intake://specs/{name}/{section}` URIs. Supports 6 sections: requirements, tasks, context, acceptance, design, sources. `FILE_MAP` maps section names to actual filenames.
+- **MCP prompts** (`mcp/prompts.py`): Two structured prompt templates:
+  - `implement_next_task`: Reads spec files and generates implementation instructions referencing MCP tools.
+  - `verify_and_fix`: Generates a verify → fix → re-verify loop until all checks pass.
+- **MCPError exception** (`mcp/__init__.py`): Error with `reason` and `suggestion` attributes.
+- **Lazy imports**: `mcp`, `starlette`, `uvicorn` imported lazily with clear `ImportError` messages and installation commands.
+
+#### Watch mode (file monitoring + auto-verification)
+
+- **Watch module** (`watch/`): File watcher with selective re-verification. Requires `pip install intake-ai-cli[watch]`.
+- **SpecWatcher** (`watch/watcher.py`): Monitors project directory using `watchfiles` (Rust-based, efficient). On file change, re-runs verification checks and displays results.
+  - `run_once()`: Single verification without watching.
+  - `run()`: Continuous watch loop with debouncing.
+  - `_filter_ignored()`: Filters files by ignore patterns (fnmatch per path component).
+  - `_matches_any()`: Static method for pattern matching against individual path components.
+  - `_extract_changed_files()`: Extracts relative paths from watchfiles change sets.
+  - `MAX_CHANGED_FILES_DISPLAY = 5`: Limits terminal output.
+- **WatchError exception** (`watch/__init__.py`): Error with `reason` and `suggestion` attributes.
+- **Debouncing**: Configurable via `WatchConfig.debounce_seconds`, passed to watchfiles native debouncing.
+
+#### Configuration
+
+- **MCPConfig** (`config/schema.py`): `specs_dir`, `project_dir`, `transport` (stdio/sse), `sse_port`.
+- **WatchConfig** (`config/schema.py`): `debounce_seconds` (default: 2.0), `ignore_patterns` (default: `["*.pyc", "__pycache__", ".git", "node_modules", ".intake"]`).
+- Both added to `IntakeConfig` as `mcp` and `watch` fields.
+
+#### CLI commands
+
+- **`intake mcp serve`**: Start the MCP server. Options: `--transport` (stdio/sse), `--port`, `--specs-dir`, `--project-dir`.
+- **`intake watch`**: Watch project files and re-run verification. Options: `--project-dir`, `--tags`, `--debounce`, `--verbose`.
+
+#### Optional dependencies
+
+- `mcp = ["mcp[cli]>=1.0"]`: MCP server support.
+- `watch = ["watchfiles>=1.0"]`: Watch mode support.
+- `all = [connectors + watch + mcp]`: Install everything.
+
+#### Test suite
+
+- **772 tests** (up from 673), **0 failures**, **10 skipped** (MCP prompts tests when mcp package not installed). 99 new tests added.
+- 5 new test files: `test_mcp/test_tools.py` (31), `test_mcp/test_resources.py` (17), `test_mcp/test_prompts.py` (10), `test_mcp/test_server.py` (10), `test_watch/test_watcher.py` (27).
+- Config tests: 2 new tests for MCPConfig and WatchConfig nested overrides.
+- CLI tests: 4 new tests for MCP and Watch help output.
+
+### Fixed
+
+- **`_filter_ignored` path matching** (`watch/watcher.py`): Fixed fnmatch to check individual path components (e.g., `.git` now correctly matches `.git/objects/abc`). Added `_matches_any()` static method.
+- **Silent exception in `_handle_get_tasks`** (`mcp/tools.py`): Added `logger.debug("task_state_manager_fallback", ...)` to bare `except Exception` block.
+- **Missing `run_sse` export** (`mcp/__init__.py`): Added `run_sse` to `__all__` and convenience re-export function.
+- **`__all__` sort order** (`mcp/__init__.py`): Fixed RUF022 by sorting alphabetically.
+- **ruff TC003 in tests**: Added `per-file-ignores` rule for `tests/**/*.py` to allow stdlib imports at runtime in test fixtures.
+
 ## [0.3.0] - 2026-03-04
 
 ### Added

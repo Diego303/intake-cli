@@ -347,7 +347,66 @@ Ver [Exportacion](exportacion.md) para detalles completos.
                                                 |
                                         FeedbackResult
                                         (sugerencias + enmiendas)
+
+                                                |
+                                         [ MCP SERVER ]  (opcional)
+                                                |
+                                        Agentes IA consumen specs
+                                        via tools, resources, prompts
 ```
+
+---
+
+## MCP Server (opcional)
+
+**Modulo:** `mcp/`
+**Requiere LLM:** No (excepto `intake_feedback` tool)
+
+### Que hace
+
+Expone las specs como un servidor MCP (Model Context Protocol) para que cualquier agente IA compatible pueda consumirlas programaticamente. No es una fase del pipeline en si, sino una capa de consumo que se ubica despues del export.
+
+### Que expone
+
+| Tipo | Cantidad | Descripcion |
+|------|----------|-------------|
+| Tools | 7 | Operaciones sobre specs (show, verify, feedback, tasks, etc.) |
+| Resources | 6 | Acceso directo a archivos spec via URIs `intake://specs/{name}/{section}` |
+| Prompts | 2 | Templates estructurados para agentes (implement_next_task, verify_and_fix) |
+
+### Transportes
+
+| Transporte | Uso |
+|-----------|-----|
+| `stdio` | Agentes locales (Claude Code, Claude Desktop). Default. |
+| `sse` | Agentes remotos via HTTP (Server-Sent Events). |
+
+Ver [MCP Server](mcp-server.md) para documentacion completa.
+
+---
+
+## Watch Mode (opcional)
+
+**Modulo:** `watch/`
+**Requiere LLM:** No
+
+### Que hace
+
+Monitorea el directorio del proyecto y re-ejecuta automaticamente los checks de verificacion cuando detecta cambios en archivos. Complementa la fase de Verify con un ciclo continuo durante el desarrollo.
+
+### Flujo
+
+```
+                    [ WATCH ]
+                        |
+    Detecta cambios --> Filtra ignorados --> Re-ejecuta verify --> Muestra resultado
+         ^                                                              |
+         └──────────────────────────────────────────────────────────────┘
+```
+
+Usa `watchfiles` (Rust-based) con debouncing configurable y patrones de exclusion.
+
+Ver [Watch Mode](watch-mode.md) para documentacion completa.
 
 ---
 

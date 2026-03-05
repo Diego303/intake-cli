@@ -37,7 +37,7 @@ class KiroExporter:
         """Plugin metadata."""
         return PluginMeta(
             name="kiro",
-            version="0.3.0",
+            version="0.4.0",
             description="Export spec for Kiro",
         )
 

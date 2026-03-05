@@ -47,7 +47,7 @@ pip install -e ".[dev]"
 | Documento | Descripcion |
 |-----------|-------------|
 | [Arquitectura](arquitectura.md) | Arquitectura del sistema, modulos, flujo de datos y decisiones de diseno |
-| [Guia CLI](guia-cli.md) | Referencia completa de los 15 comandos/subcomandos con todas sus opciones |
+| [Guia CLI](guia-cli.md) | Referencia completa de los 19 comandos/subcomandos con todas sus opciones |
 | [Configuracion](configuracion.md) | Todas las opciones de `.intake.yaml`, presets y variables de entorno |
 
 **Pipeline:**
@@ -61,6 +61,8 @@ pip install -e ".[dev]"
 | [Verificacion](verificacion.md) | Motor de checks de aceptacion, reporters y CI/CD |
 | [Exportacion](exportacion.md) | 6 formatos de exportacion para agentes IA |
 | [Feedback](feedback.md) | Feedback loop: analisis de fallos y enmiendas a la spec |
+| [MCP Server](mcp-server.md) | Servidor MCP para agentes IA: tools, resources, prompts y transportes |
+| [Watch Mode](watch-mode.md) | Modo watch: monitoreo de archivos y re-verificacion automatica |
 
 **Operaciones y enterprise:**
 
@@ -119,6 +121,12 @@ intake plugins list
 # 11. Seguimiento de tareas
 intake task list specs/pasarela-de-pagos/
 intake task update specs/pasarela-de-pagos/ 1 done --note "Implementado"
+
+# 12. Servidor MCP para agentes IA
+intake mcp serve --transport stdio
+
+# 13. Watch mode: re-verificar al cambiar archivos
+intake watch specs/pasarela-de-pagos/ --project-dir . --verbose
 ```
 
 ---

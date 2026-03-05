@@ -322,6 +322,46 @@ intake export specs/my-feature/ -f generic -o output/
 
 ---
 
+## Verificacion continua con watch mode
+
+Para re-ejecutar los checks automaticamente cada vez que cambias un archivo en el proyecto:
+
+```bash
+intake watch specs/my-spec/ -p .
+```
+
+Esto monitorea el directorio del proyecto con `watchfiles` y re-ejecuta los checks de `acceptance.yaml` en cada cambio. Util durante el desarrollo para ver inmediatamente si la implementacion cumple la spec.
+
+```bash
+# Solo checks con tag "tests"
+intake watch specs/my-spec/ -p . -t tests
+
+# Debounce mas largo (5 segundos)
+intake watch specs/my-spec/ -p . --debounce 5.0
+```
+
+Requiere: `pip install "intake-ai-cli[watch]"`
+
+Ver [Watch Mode](watch-mode.md) para documentacion completa.
+
+---
+
+## Verificacion via MCP
+
+Si usas el servidor MCP de intake, los agentes IA pueden ejecutar verificacion programaticamente con el tool `intake_verify`:
+
+```
+Tool: intake_verify
+Input: { "spec_name": "my-spec", "tags": ["tests"] }
+Output: "Verification: 3/4 passed\n[PASS] check-01: Tests pasan\n[FAIL] check-03: ..."
+```
+
+Tambien pueden usar el prompt `verify_and_fix` para un ciclo automatico de verificar-corregir-reverificar.
+
+Ver [MCP Server](mcp-server.md) para detalles.
+
+---
+
 ## Exit codes
 
 | Codigo | Significado |

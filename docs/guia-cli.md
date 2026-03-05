@@ -1,6 +1,6 @@
 # Guia CLI
 
-intake proporciona 15 comandos y subcomandos. Todos siguen el patron:
+intake proporciona 19 comandos y subcomandos. Todos siguen el patron:
 
 ```bash
 intake <comando> [argumentos] [opciones]
@@ -587,6 +587,129 @@ intake feedback specs/mi-feature/ -p . --agent-format claude-code
 
 ---
 
+## intake mcp serve
+
+Inicia el servidor MCP (Model Context Protocol) para integracion con agentes IA.
+
+```bash
+intake mcp serve [opciones]
+```
+
+### Opciones
+
+| Flag | Tipo | Default | Descripcion |
+|------|------|---------|-------------|
+| `--transport` | opcion | `stdio` | Transporte: `stdio` (para agentes CLI) o `sse` (HTTP para IDEs). |
+| `--port` | entero | `8080` | Puerto para transporte SSE. |
+| `--specs-dir` | path | `./specs` | Directorio base donde viven las specs. |
+| `--project-dir` | path | `.` | Directorio del proyecto para verificacion. |
+
+### Que expone
+
+**7 Tools:**
+
+| Tool | Descripcion |
+|------|-------------|
+| `intake_show` | Muestra resumen del spec con contenido de archivos |
+| `intake_get_context` | Lee context.md del spec |
+| `intake_get_tasks` | Lista tareas con filtro por status (all/pending/in_progress/done/blocked) |
+| `intake_update_task` | Actualiza el status de una tarea con nota opcional |
+| `intake_verify` | Ejecuta checks de aceptacion con filtro por tags |
+| `intake_feedback` | Verifica + genera feedback sobre fallos |
+| `intake_list_specs` | Lista specs disponibles |
+
+**6 Resources** via URIs `intake://specs/{name}/{section}`:
+- `requirements`, `tasks`, `context`, `acceptance`, `design`, `sources`
+
+**2 Prompts:**
+- `implement_next_task`: contexto del spec + siguiente tarea pendiente + instrucciones
+- `verify_and_fix`: loop de verificar -> arreglar -> re-verificar
+
+### Ejemplos
+
+```bash
+# Iniciar con transporte stdio (para Claude Code, etc.)
+intake mcp serve --transport stdio
+
+# Iniciar con transporte SSE (HTTP)
+intake mcp serve --transport sse --port 8080
+
+# Con directorio de specs personalizado
+intake mcp serve --specs-dir ./my-specs --project-dir /path/to/project
+```
+
+### Requisitos
+
+Requiere el paquete `mcp`: `pip install intake-ai-cli[mcp]`
+
+---
+
+## intake watch
+
+Monitorea archivos del proyecto y re-ejecuta verificacion automaticamente ante cambios.
+
+```bash
+intake watch <SPEC_DIR> [opciones]
+```
+
+### Argumento
+
+| Argumento | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `SPEC_DIR` | path | Si | Directorio de la spec con `acceptance.yaml`. |
+
+### Opciones
+
+| Flag | Corto | Tipo | Default | Descripcion |
+|------|-------|------|---------|-------------|
+| `--project-dir` | `-p` | path | `.` | Directorio del proyecto a monitorear. |
+| `--tags` | `-t` | texto | todos | Solo ejecutar checks con estos tags (repetible). |
+| `--debounce` | | float | `2.0` | Segundos de espera antes de re-ejecutar (debouncing). |
+| `--verbose` | `-v` | flag | false | Output detallado con archivos cambiados. |
+
+### Que hace
+
+1. Carga `acceptance.yaml` del directorio de spec
+2. Ejecuta una verificacion inicial (equivalente a `run_once()`)
+3. Monitorea el directorio del proyecto usando `watchfiles` (Rust-based, eficiente)
+4. Cuando detecta cambios en archivos:
+   - Filtra archivos ignorados (*.pyc, __pycache__, .git, node_modules, .intake)
+   - Espera el tiempo de debounce configurado
+   - Re-ejecuta los checks de aceptacion
+   - Muestra resultados en terminal con Rich
+
+### Patrones ignorados por defecto
+
+- `*.pyc`
+- `__pycache__`
+- `.git`
+- `node_modules`
+- `.intake`
+
+Personalizables via `watch.ignore_patterns` en `.intake.yaml`.
+
+### Ejemplos
+
+```bash
+# Watch basico
+intake watch specs/mi-feature/ -p .
+
+# Con filtro de tags y verbose
+intake watch specs/mi-feature/ -p . -t tests -t lint --verbose
+
+# Con debounce personalizado
+intake watch specs/mi-feature/ -p . --debounce 5
+
+# Solo checks de seguridad
+intake watch specs/mi-feature/ -p . -t security
+```
+
+### Requisitos
+
+Requiere el paquete `watchfiles`: `pip install intake-ai-cli[watch]`
+
+---
+
 ## Opciones globales
 
 | Flag | Descripcion |
@@ -595,7 +718,7 @@ intake feedback specs/mi-feature/ -p . --agent-format claude-code
 | `--help` | Muestra la ayuda del comando |
 
 ```bash
-intake --version    # intake, version 0.3.0
+intake --version    # intake, version 0.4.0
 intake --help       # Ayuda general
 intake init --help  # Ayuda del comando init
 ```

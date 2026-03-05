@@ -102,6 +102,23 @@ feedback:
   max_suggestions: 10             # Max sugerencias por analisis
   include_code_snippets: true     # Incluir codigo en sugerencias
 
+# Servidor MCP
+mcp:
+  specs_dir: ./specs            # Directorio base de specs
+  project_dir: .                # Directorio del proyecto para verificacion
+  transport: stdio              # stdio | sse
+  sse_port: 8080                # Puerto para transporte SSE
+
+# Modo watch
+watch:
+  debounce_seconds: 2.0         # Segundos de espera tras el ultimo cambio
+  ignore_patterns:              # Patrones glob a ignorar
+    - "*.pyc"
+    - "__pycache__"
+    - ".git"
+    - "node_modules"
+    - ".intake"
+
 # Seguridad
 security:
   redact_patterns: []             # Patrones regex a redactar del output
@@ -272,6 +289,30 @@ Configuracion del feedback loop. Ver [Feedback](feedback.md) para detalles.
 | `feedback.auto_amend_spec` | bool | `false` | Aplicar enmiendas a la spec automaticamente tras el analisis. |
 | `feedback.max_suggestions` | int | `10` | Maximo de sugerencias a generar por analisis. |
 | `feedback.include_code_snippets` | bool | `true` | Incluir fragmentos de codigo en las sugerencias. |
+
+### Seccion `mcp`
+
+Configuracion del servidor MCP (Model Context Protocol). Ver [MCP Server](mcp-server.md) para detalles completos.
+
+| Campo | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `mcp.specs_dir` | string | `"./specs"` | Directorio base donde estan las specs. |
+| `mcp.project_dir` | string | `"."` | Directorio del proyecto para verificacion. |
+| `mcp.transport` | string | `"stdio"` | Transporte del servidor: `stdio` (local) o `sse` (HTTP). |
+| `mcp.sse_port` | int | `8080` | Puerto para el transporte SSE. |
+
+**Nota:** El servidor MCP requiere el paquete `mcp`. Instalar con: `pip install "intake-ai-cli[mcp]"`. El transporte SSE requiere ademas `starlette` y `uvicorn`.
+
+### Seccion `watch`
+
+Configuracion del modo watch para re-verificacion automatica. Ver [Watch Mode](watch-mode.md) para detalles completos.
+
+| Campo | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `watch.debounce_seconds` | float | `2.0` | Tiempo de espera tras el ultimo cambio de archivo antes de re-verificar. |
+| `watch.ignore_patterns` | list[string] | `["*.pyc", "__pycache__", ".git", "node_modules", ".intake"]` | Patrones glob de archivos/directorios a ignorar. Se comparan contra cada componente del path. |
+
+**Nota:** El modo watch requiere el paquete `watchfiles`. Instalar con: `pip install "intake-ai-cli[watch]"`.
 
 ### Seccion `security`
 

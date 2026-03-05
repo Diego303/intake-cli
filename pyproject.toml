@@ -1,6 +1,6 @@
 [project]
 name = "intake-ai-cli"
-version = "0.3.0"
+version = "0.4.0"
 description = "From requirements in any format to verified implementation"
 readme = "README.md"
 license = {text = "MIT"}
@@ -66,6 +66,9 @@ watch = [
 mcp = [
     "mcp>=1.0",
 ]
+all = [
+    "intake-ai-cli[connectors,watch,mcp]",
+]
 
 [project.scripts]
 intake = "intake.cli:main"
@@ -121,6 +124,9 @@ select = [
     "TCH",  # flake8-type-checking
     "RUF",  # ruff-specific rules
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["TC003"]  # stdlib imports used at runtime in test fixtures
 
 [tool.mypy]
 python_version = "3.12"

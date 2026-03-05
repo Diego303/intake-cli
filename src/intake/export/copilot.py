@@ -36,7 +36,7 @@ class CopilotExporter:
         """Plugin metadata."""
         return PluginMeta(
             name="copilot",
-            version="0.3.0",
+            version="0.4.0",
             description="Export spec for GitHub Copilot",
         )
 

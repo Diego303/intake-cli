@@ -46,6 +46,12 @@ intake processes requirements through a 5-phase pipeline:
 
 ```bash
 pip install intake-ai-cli
+
+# With optional features
+pip install intake-ai-cli[mcp]         # MCP server support
+pip install intake-ai-cli[watch]       # Watch mode support
+pip install intake-ai-cli[connectors]  # Jira, Confluence, GitHub API connectors
+pip install intake-ai-cli[all]         # Everything
 ```
 
 Requires Python 3.12+. The CLI command is `intake`.
@@ -88,6 +94,14 @@ intake init "API review" -s https://wiki.company.com/rfc/auth
 intake init "Sprint planning" -s jira://PROJ/sprint/42
 intake init "Wiki review" -s confluence://SPACE/Page-Title
 intake init "Bug triage" -s github://org/repo/issues?labels=bug
+
+# Start MCP server for AI agent integration
+intake mcp serve --transport stdio
+intake mcp serve --transport sse --port 8080
+
+# Watch project files and auto-verify on changes
+intake watch ./specs/auth-oauth2 --project-dir . --verbose
+intake watch ./specs/auth-oauth2 --tags test,lint --debounce 3
 
 # Export for specific agents
 intake init "Payments" -s reqs.pdf --format claude-code
@@ -183,6 +197,8 @@ connectors:
 | `intake plugins check` | Validate plugin compatibility | **Available** |
 | `intake task list` | List tasks from a spec with current status | **Available** |
 | `intake task update` | Update a task's status (pending/in_progress/done/blocked) | **Available** |
+| `intake mcp serve` | Start MCP server (stdio or SSE transport) | **Available** |
+| `intake watch` | Watch project files and re-run verification on changes | **Available** |
 
 ---
 
@@ -222,6 +238,21 @@ connectors:
   confluence:
     url: https://your-org.atlassian.net/wiki
   github: {}                   # Uses GITHUB_TOKEN env var
+
+mcp:
+  specs_dir: ./specs           # Where specs live
+  project_dir: .               # Project root for verification
+  transport: stdio             # stdio | sse
+  sse_port: 8080               # Port for SSE transport
+
+watch:
+  debounce_seconds: 2.0        # Wait before re-running verification
+  ignore_patterns:             # Files/dirs to ignore
+    - "*.pyc"
+    - "__pycache__"
+    - ".git"
+    - "node_modules"
+    - ".intake"
 ```
 
 ### Presets
@@ -261,7 +292,7 @@ See the [`examples/`](examples/) directory for ready-to-run scenarios:
 src/intake/
 ├── cli.py                  # Click CLI — thin adapter, no logic
 ├── config/                 # Pydantic v2 models, presets, layered loader
-│   ├── schema.py           #   9 config models (LLM, Project, Spec, Verification, Export, Security, Connectors, Feedback)
+│   ├── schema.py           #   11 config models (LLM, Project, Spec, Verification, Export, Security, Connectors, Feedback, MCP, Watch)
 │   ├── presets.py           #   minimal / standard / enterprise presets
 │   ├── loader.py            #   Layered merge: defaults → preset → YAML → CLI
 │   └── defaults.py          #   Centralized constants
@@ -318,6 +349,15 @@ src/intake/
 │   └── generic.py          #   SPEC.md + verify.sh generation
 ├── diff/                   # Spec comparison
 │   └── differ.py           #   Compare two specs by requirement/task IDs
+├── mcp/                    # MCP server (Model Context Protocol)
+│   ├── __init__.py         #   MCPError + re-exports
+│   ├── server.py           #   Server creation + stdio/SSE transports
+│   ├── tools.py            #   7 tools: show, context, tasks, update, verify, feedback, list
+│   ├── resources.py        #   Dynamic spec file resources (intake://specs/{name}/{section})
+│   └── prompts.py          #   Prompt templates: implement_next_task, verify_and_fix
+├── watch/                  # Watch mode (file monitoring + auto-verification)
+│   ├── __init__.py         #   WatchError exception
+│   └── watcher.py          #   SpecWatcher with watchfiles integration
 ├── feedback/               # Feedback loop (analyze failures, suggest fixes)
 │   ├── analyzer.py         #   LLM-based failure analysis
 │   ├── prompts.py          #   Feedback analysis prompt
@@ -400,6 +440,49 @@ intake export ./specs/auth -f copilot -o .
 # Generates .github/copilot-instructions.md (auto-loaded by Copilot)
 ```
 
+### MCP Server (AI Agent Integration)
+
+intake exposes specs via the [Model Context Protocol](https://modelcontextprotocol.io/), allowing AI agents to consume specs in real time:
+
+```bash
+# Start MCP server with stdio transport (for CLI agents like Claude Code)
+intake mcp serve --transport stdio
+
+# Start MCP server with SSE transport (for IDE integrations)
+intake mcp serve --transport sse --port 8080
+```
+
+**MCP tools available to agents:**
+- `intake_show` — View spec summary
+- `intake_get_context` — Read project context
+- `intake_get_tasks` — List tasks with status filtering
+- `intake_update_task` — Mark tasks as done/in_progress
+- `intake_verify` — Run acceptance checks
+- `intake_feedback` — Analyze verification failures
+- `intake_list_specs` — List available specs
+
+**MCP resources:** Direct access to spec files via `intake://specs/{name}/{section}` URIs.
+
+**MCP prompts:** `implement_next_task` and `verify_and_fix` provide structured starting points for agents.
+
+Install MCP support: `pip install intake-ai-cli[mcp]`
+
+### Watch Mode
+
+Automatically re-run verification checks when project files change:
+
+```bash
+# Watch with default settings
+intake watch ./specs/auth-oauth2 --project-dir .
+
+# Watch with tags filter and custom debounce
+intake watch ./specs/auth-oauth2 --tags test,lint --debounce 3 --verbose
+```
+
+Uses `watchfiles` (Rust-based) for efficient file monitoring with configurable debounce and ignore patterns.
+
+Install watch support: `pip install intake-ai-cli[watch]`
+
 ### Feedback Loop
 
 ```bash
@@ -444,7 +527,7 @@ ruff format src/ tests/
 mypy src/ --strict
 ```
 
-Current test suite: **673 tests**, **0 mypy --strict errors**, **0 ruff warnings**.
+Current test suite: **772 tests**, **0 mypy --strict errors**, **0 ruff warnings**.
 
 ### Implementation Status
 
@@ -458,9 +541,11 @@ Current test suite: **673 tests**, **0 mypy --strict errors**, **0 ruff warnings
 | Plugins | `plugins/` (protocols + discovery + hooks) | Implemented |
 | Connectors | `connectors/` (Jira, Confluence, GitHub API connectors) | Implemented |
 | Feedback | `feedback/` (analyzer + suggestions + spec updater) | Implemented |
+| MCP Server | `mcp/` (server + 7 tools + resources + prompts) | Implemented |
+| Watch Mode | `watch/` (SpecWatcher with watchfiles) | Implemented |
 | Standalone | `doctor/`, `config/`, `llm/`, `utils/` | Implemented |
 | Standalone | `diff/` (spec differ) | Implemented |
-| CLI | 15 commands/subcommands wired end-to-end | Implemented |
+| CLI | 19 commands/subcommands wired end-to-end | Implemented |
 
 ---
 

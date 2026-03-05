@@ -36,7 +36,7 @@ class CursorExporter:
         """Plugin metadata."""
         return PluginMeta(
             name="cursor",
-            version="0.3.0",
+            version="0.4.0",
             description="Export spec for Cursor",
         )
 
