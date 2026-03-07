@@ -183,6 +183,39 @@ Connector error: Failed to connect to Jira at https://company.atlassian.net
 
 4. Si la API requiere VPN o firewall, verificar la conexion de red.
 
+### Conector: timeout o error de red
+
+**Error:**
+```
+Connector error: Could not write temp file for ...: Connection timed out
+```
+
+o:
+
+```
+Connector error: Could not access repository org/repo: ...
+```
+
+**Solucion:**
+
+1. **Timeout de red**: verificar conexion a internet y que la API del servicio esta disponible:
+   ```bash
+   # GitHub
+   curl -s https://api.github.com/rate_limit
+
+   # Jira
+   curl -s https://company.atlassian.net/rest/api/2/serverInfo
+
+   # Confluence
+   curl -s https://company.atlassian.net/wiki/rest/api/space
+   ```
+
+2. **Token expirado o invalido**: regenerar el token de acceso y actualizar la variable de entorno.
+
+3. **Repositorio o proyecto no encontrado**: verificar que el nombre del repo/proyecto es correcto y que el token tiene permisos de lectura.
+
+4. **Disco lleno**: si el error menciona "Could not write temp file", verificar espacio en disco disponible.
+
 ### Conector no disponible (dependencia faltante)
 
 **Error:**

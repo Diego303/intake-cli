@@ -80,20 +80,26 @@ class ConfluenceConnector:
             body_html = self._extract_body(page)
 
             safe_title = "".join(c if c.isalnum() or c in "-_" else "_" for c in title)
-            tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
-                mode="w",
-                suffix=".html",
-                prefix=f"confluence_{safe_title}_",
-                delete=False,
-                encoding="utf-8",
-            )
-            # Wrap in HTML with Confluence marker for parser auto-detection
-            tmp.write(
-                f"<!-- Confluence page: {title} (id: {page_id}) -->\n"
-                f"<html><head><title>{title}</title></head>\n"
-                f"<body class='confluence-page'>\n{body_html}\n</body></html>"
-            )
-            tmp.close()
+            try:
+                tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
+                    mode="w",
+                    suffix=".html",
+                    prefix=f"confluence_{safe_title}_",
+                    delete=False,
+                    encoding="utf-8",
+                )
+                # Wrap in HTML with Confluence marker for parser auto-detection
+                tmp.write(
+                    f"<!-- Confluence page: {title} (id: {page_id}) -->\n"
+                    f"<html><head><title>{title}</title></head>\n"
+                    f"<body class='confluence-page'>\n{body_html}\n</body></html>"
+                )
+                tmp.close()
+            except OSError as e:
+                raise ConnectorError(
+                    reason=f"Could not write temp file for page '{title}': {e}",
+                    suggestion="Check disk space and permissions on the temp directory.",
+                ) from e
 
             results.append(
                 FetchedSource(

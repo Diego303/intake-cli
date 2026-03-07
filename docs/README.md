@@ -80,6 +80,16 @@ pip install -e ".[dev]"
 | [Buenas practicas](buenas-practicas.md) | Tips, patrones recomendados y como sacar el maximo provecho |
 | [Solucion de problemas](solucion-problemas.md) | Errores comunes, diagnostico y FAQ |
 
+**Release notes:**
+
+| Documento | Descripcion |
+|-----------|-------------|
+| [v0.5.0](github-notes/v0.5.0.md) | Polish, CI/CD, GitHub Actions action, mypy --strict, 5 examples |
+| [v0.4.0](github-notes/v0.4.0.md) | MCP server + Watch mode |
+| [v0.3.0](github-notes/v0.3.0.md) | Connectors + Exporters + Feedback loop |
+| [v0.2.0](github-notes/v0.2.0.md) | Plugin system + New parsers + Adaptive generation |
+| [v0.1.0](github-notes/v0.1.0.md) | Initial release |
+
 ---
 
 ## Inicio rapido

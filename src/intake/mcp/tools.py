@@ -40,7 +40,7 @@ def register_tools(server: object, specs_dir: str, project_dir: str) -> None:
             "MCP tools require the mcp package. Install with: pip install intake-ai-cli[mcp]"
         ) from None
 
-    @server.list_tools()  # type: ignore[union-attr]
+    @server.list_tools()  # type: ignore[attr-defined, untyped-decorator]
     async def list_tools() -> list[Tool]:
         return [
             Tool(
@@ -150,7 +150,7 @@ def register_tools(server: object, specs_dir: str, project_dir: str) -> None:
             ),
         ]
 
-    @server.call_tool()  # type: ignore[union-attr]
+    @server.call_tool()  # type: ignore[attr-defined, untyped-decorator]
     async def call_tool(name: str, arguments: dict[str, object]) -> list[TextContent]:
         try:
             if name == "intake_show":

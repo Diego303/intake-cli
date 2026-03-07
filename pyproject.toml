@@ -1,6 +1,6 @@
 [project]
 name = "intake-ai-cli"
-version = "0.4.0"
+version = "0.5.0"
 description = "From requirements in any format to verified implementation"
 readme = "README.md"
 license = {text = "MIT"}
@@ -133,6 +133,24 @@ python_version = "3.12"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+
+# Optional dependencies without type stubs
+[[tool.mypy.overrides]]
+module = [
+    "mcp",
+    "mcp.*",
+    "atlassian",
+    "atlassian.*",
+    "github",
+    "github.*",
+    "uvicorn",
+    "uvicorn.*",
+    "starlette",
+    "starlette.*",
+    "watchfiles",
+    "watchfiles.*",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

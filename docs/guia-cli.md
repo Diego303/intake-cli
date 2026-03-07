@@ -718,7 +718,7 @@ Requiere el paquete `watchfiles`: `pip install intake-ai-cli[watch]`
 | `--help` | Muestra la ayuda del comando |
 
 ```bash
-intake --version    # intake, version 0.4.0
+intake --version    # intake, version 0.5.0
 intake --help       # Ayuda general
 intake init --help  # Ayuda del comando init
 ```

@@ -96,14 +96,20 @@ class GithubConnector:
         results: list[FetchedSource] = []
         for issue_data in issues:
             number = issue_data.get("number", 0)
-            tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
-                mode="w",
-                suffix=".json",
-                prefix=f"github_{repo}_{number}_",
-                delete=False,
-            )
-            json.dump(issue_data, tmp, indent=2, default=str)
-            tmp.close()
+            try:
+                tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
+                    mode="w",
+                    suffix=".json",
+                    prefix=f"github_{repo}_{number}_",
+                    delete=False,
+                )
+                json.dump(issue_data, tmp, indent=2, default=str)
+                tmp.close()
+            except OSError as e:
+                raise ConnectorError(
+                    reason=f"Could not write temp file for issue #{number}: {e}",
+                    suggestion="Check disk space and permissions on the temp directory.",
+                ) from e
 
             results.append(
                 FetchedSource(

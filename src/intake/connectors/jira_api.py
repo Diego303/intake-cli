@@ -81,14 +81,20 @@ class JiraConnector:
         results: list[FetchedSource] = []
         for issue in issues:
             key = issue.get("key", "UNKNOWN")
-            tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
-                mode="w",
-                suffix=".json",
-                prefix=f"jira_{key}_",
-                delete=False,
-            )
-            json.dump({"issues": [issue]}, tmp, indent=2)
-            tmp.close()
+            try:
+                tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
+                    mode="w",
+                    suffix=".json",
+                    prefix=f"jira_{key}_",
+                    delete=False,
+                )
+                json.dump({"issues": [issue]}, tmp, indent=2)
+                tmp.close()
+            except OSError as e:
+                raise ConnectorError(
+                    reason=f"Could not write temp file for issue {key}: {e}",
+                    suggestion="Check disk space and permissions on the temp directory.",
+                ) from e
 
             results.append(
                 FetchedSource(
