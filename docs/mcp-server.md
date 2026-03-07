@@ -12,7 +12,7 @@ intake mcp serve [OPTIONS]
 
 El servidor MCP de intake (nombre: `intake-spec`) proporciona:
 
-- **7 herramientas (tools)** — operaciones sobre specs: consultar, verificar, actualizar tareas, analizar fallos
+- **9 herramientas (tools)** — operaciones sobre specs: consultar, verificar, validar, estimar costos, actualizar tareas, analizar fallos
 - **6 recursos (resources)** — acceso directo a los archivos spec via URIs `intake://`
 - **2 prompts** — plantillas estructuradas para flujos de implementacion y correccion
 - **2 transportes** — stdio (local) y SSE (red)
@@ -80,7 +80,7 @@ intake mcp serve --specs-dir ./specs --project-dir /path/to/project --transport 
 
 ## Herramientas (Tools)
 
-El servidor expone 7 herramientas que los agentes pueden invocar:
+El servidor expone 9 herramientas que los agentes pueden invocar:
 
 ### intake_list_specs
 
@@ -165,6 +165,31 @@ Analiza los fallos de verificacion y sugiere correcciones. Internamente ejecuta 
 | Parametro | Requerido | Descripcion |
 |-----------|-----------|-------------|
 | `spec_name` | Si | Nombre de la spec |
+
+---
+
+### intake_validate
+
+Valida la consistencia interna de una spec: cross-references, dependencias de tareas, validez de checks de aceptacion y completeness. Funciona offline.
+
+| Parametro | Requerido | Default | Descripcion |
+|-----------|-----------|---------|-------------|
+| `spec_name` | Si | — | Nombre de la spec |
+| `strict` | No | `false` | Modo estricto: warnings se convierten en errores |
+
+Retorna un reporte con errores, warnings, y conteos de requisitos, tareas y checks encontrados.
+
+---
+
+### intake_estimate
+
+Estima el costo LLM para generar o regenerar una spec basandose en los archivos existentes.
+
+| Parametro | Requerido | Descripcion |
+|-----------|-----------|-------------|
+| `spec_name` | Si | Nombre de la spec |
+
+Escanea los archivos de la spec para contar palabras y estima tokens, numero de llamadas LLM y costo en dolares.
 
 ---
 
@@ -342,7 +367,7 @@ intake mcp serve --transport sse --port 9090
 |---------|-----------------|
 | `mcp/__init__.py` | Excepcion `MCPError` y exports publicos |
 | `mcp/server.py` | Creacion del servidor, transportes stdio y SSE |
-| `mcp/tools.py` | Definicion y handlers de las 7 herramientas |
+| `mcp/tools.py` | Definicion y handlers de las 9 herramientas |
 | `mcp/resources.py` | Listado y lectura de recursos (archivos spec) |
 | `mcp/prompts.py` | 2 plantillas de prompts estructurados |
 
@@ -353,12 +378,14 @@ El modulo `mcp/` utiliza:
 - `verify/` — para ejecutar checks de aceptacion (`intake_verify`)
 - `utils/task_state` — para leer y actualizar estado de tareas (`intake_get_tasks`, `intake_update_task`)
 - `feedback/` — para analisis de fallos (`intake_feedback`)
+- `validate/` — para validacion interna de specs (`intake_validate`)
+- `estimate/` — para estimacion de costos (`intake_estimate`)
 
 El modulo `mcp/` **no importa** directamente de `analyze/` ni de `llm/`. La herramienta `intake_feedback` delega al modulo de feedback, que gestiona su propia interaccion con el LLM.
 
 ```
 mcp/
-  ├── tools.py → verify/, utils/task_state, feedback/
+  ├── tools.py → verify/, validate/, estimate/, utils/task_state, feedback/
   ├── resources.py → (lectura directa de archivos)
   └── prompts.py → (plantillas estaticas)
 ```

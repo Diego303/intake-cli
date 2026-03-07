@@ -148,6 +148,44 @@ intake init "Mi feature" -s reqs.md --preset standard
 
 ---
 
+## Validar antes de exportar
+
+Antes de exportar una spec para un agente IA o de entregarla a un equipo, ejecuta `intake validate` para detectar problemas de consistencia:
+
+```bash
+intake validate specs/mi-feature/
+```
+
+Esto verifica offline (sin LLM) 5 categorias: estructura, referencias cruzadas, consistencia, acceptance checks y completitud. Es rapido y gratuito.
+
+Para maxima rigurosidad (warnings tambien fallan):
+
+```bash
+intake validate specs/mi-feature/ --strict
+```
+
+**Recomendacion:** Integra `intake validate --strict` en tu CI pipeline junto con `intake verify`.
+
+---
+
+## Estimar costos antes de generar
+
+Usa `intake estimate` para saber cuanto costara generar una spec antes de ejecutar `intake init`:
+
+```bash
+intake estimate -s requirements.md -s notas.md
+
+# Con un modelo especifico
+intake estimate -s requirements.md --model gpt-4o
+
+# En modo quick (mas barato)
+intake estimate -s bug.txt --mode quick
+```
+
+Esto calcula tokens estimados, costo por modelo, y muestra alertas si se supera el presupuesto configurado. Util para equipos con presupuesto limitado.
+
+---
+
 ## Gestion de costos
 
 ### Entender el costo
@@ -422,3 +460,16 @@ intake watch specs/mi-feature/ -p . -t tests -t security
 ```
 
 Ver [Watch Mode](watch-mode.md) para configuracion y detalles.
+
+---
+
+## Personalizar templates
+
+Si necesitas que las specs generadas tengan un formato diferente (branding, campos adicionales, estructura corporativa), puedes sobreescribir cualquier template built-in colocando un archivo `.j2` en `.intake/templates/`:
+
+```bash
+mkdir -p .intake/templates
+# Copiar y modificar el template que necesites
+```
+
+Ver [Templates personalizados](templates-personalizados.md) para la guia completa con variables disponibles y ejemplos.

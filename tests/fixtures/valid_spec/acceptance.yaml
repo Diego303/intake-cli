@@ -1,0 +1,33 @@
+checks:
+  - id: AC-01
+    name: "Registration endpoint exists (FR-01)"
+    type: files_exist
+    required: true
+    paths:
+      - src/auth/register.py
+    tags: [auth, FR-01]
+
+  - id: AC-02
+    name: "Login endpoint exists (FR-02)"
+    type: files_exist
+    required: true
+    paths:
+      - src/auth/login.py
+    tags: [auth, FR-02]
+
+  - id: AC-03
+    name: "Tests pass"
+    type: command
+    required: true
+    command: "pytest tests/ -q"
+    tags: [test]
+
+  - id: AC-04
+    name: "No hardcoded secrets"
+    type: pattern_absent
+    required: true
+    paths:
+      - "src/**/*.py"
+    patterns:
+      - "password\\s*=\\s*[\"'][^\"']+[\"']"
+    tags: [security]

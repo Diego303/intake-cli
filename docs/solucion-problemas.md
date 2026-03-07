@@ -30,6 +30,7 @@ Esto verifica:
 | Jira credentials | `JIRA_API_TOKEN` + `JIRA_EMAIL` (si jira configurado) | No |
 | Confluence credentials | `CONFLUENCE_API_TOKEN` + `CONFLUENCE_EMAIL` (si confluence configurado) | No |
 | GitHub token | `GITHUB_TOKEN` (si github configurado) | No |
+| GitLab token | `GITLAB_TOKEN` (si gitlab configurado) | No |
 
 ### Auto-fix
 
@@ -238,12 +239,14 @@ Los paquetes opcionales para conectores son:
 | Jira | atlassian-python-api | `pip install atlassian-python-api` |
 | Confluence | atlassian-python-api | `pip install atlassian-python-api` |
 | GitHub | PyGithub | `pip install PyGithub` |
+| GitLab | python-gitlab | `pip install python-gitlab` |
 
 **Alternativa sin instalar conectores:** Exporta los datos manualmente:
 
 1. **Jira**: Exporta issues como JSON desde la interfaz web
 2. **Confluence**: Exporta la pagina como HTML
 3. **GitHub**: Usa `gh api repos/org/repo/issues > issues.json`
+4. **GitLab**: Usa `curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "https://gitlab.com/api/v4/projects/ID/issues" > issues.json`
 
 ---
 
@@ -518,6 +521,91 @@ Regenerar la spec con `intake init` o verificar que la spec fue generada en modo
 
 ---
 
+### GitLab: error de conexion o autenticacion
+
+**Error:**
+```
+Connector error: Failed to connect to GitLab at https://gitlab.company.com
+  Hint: Check connectors.gitlab.url and GITLAB_TOKEN
+```
+
+**Solucion:**
+
+1. Verificar que la URL es correcta en `.intake.yaml`:
+   ```yaml
+   connectors:
+     gitlab:
+       url: "https://gitlab.company.com"
+   ```
+
+2. Verificar que `GITLAB_TOKEN` tiene un valor:
+   ```bash
+   echo $GITLAB_TOKEN   # debe tener un valor
+   ```
+
+3. El token necesita scope `read_api` minimo. Para issues privados, necesita `api`.
+
+4. Para instancias self-hosted con certificados auto-firmados:
+   ```yaml
+   connectors:
+     gitlab:
+       ssl_verify: false
+   ```
+
+5. Ejecutar `intake doctor` para validar credenciales.
+
+---
+
+### validate: errores de validacion
+
+**Error:**
+```
+Validation failed: 3 issues found (1 error, 2 warnings)
+```
+
+**Solucion:** Esto no es un error de intake — es `intake validate` reportando problemas en la spec:
+
+```bash
+# Ver los detalles
+intake validate specs/mi-feature/ --format json
+
+# Modo estricto (warnings tambien son errores)
+intake validate specs/mi-feature/ --strict
+```
+
+Problemas comunes que detecta:
+
+| Categoria | Ejemplo |
+|-----------|---------|
+| `structure` | Falta `requirements.md` o `acceptance.yaml` |
+| `cross_reference` | Una tarea referencia un requisito que no existe |
+| `consistency` | Ciclos en dependencias de tareas |
+| `acceptance` | Check sin comando definido |
+| `completeness` | Requisito sin tarea que lo implemente |
+
+---
+
+### estimate: error al estimar
+
+**Error:**
+```
+Error: No sources provided for estimation.
+```
+
+**Solucion:** `intake estimate` necesita al menos una fuente:
+
+```bash
+intake estimate -s requirements.md -s notas.md
+```
+
+Si el modelo no esta en la tabla de precios integrada, se usa el precio de `claude-sonnet-4` como fallback. Puedes especificar el modelo:
+
+```bash
+intake estimate -s reqs.md --model gpt-4o
+```
+
+---
+
 ### acceptance.yaml invalido
 
 **Error:**
@@ -558,6 +646,8 @@ Solo para `intake init` y `intake add` (que requieren llamadas al LLM). Todo lo 
 - `intake show` / `intake list` — lee archivos locales
 - `intake diff` — compara archivos locales
 - `intake doctor` — verifica el entorno local
+- `intake validate` — valida consistencia interna de la spec
+- `intake estimate` — estima costo (usa tabla local de precios)
 - `intake mcp serve` — ejecuta el servidor MCP localmente
 - `intake watch` — monitorea archivos y re-verifica localmente
 

@@ -1,6 +1,6 @@
 """MCP tool definitions for intake.
 
-Registers 7 tools on the MCP server:
+Registers 9 tools on the MCP server:
 - intake_show: Show spec summary
 - intake_get_context: Get project context
 - intake_get_tasks: Get tasks with status filtering
@@ -8,6 +8,8 @@ Registers 7 tools on the MCP server:
 - intake_verify: Run verification checks
 - intake_feedback: Analyze failures
 - intake_list_specs: List available specs
+- intake_validate: Validate spec consistency
+- intake_estimate: Estimate LLM cost
 """
 
 from __future__ import annotations
@@ -148,6 +150,33 @@ def register_tools(server: object, specs_dir: str, project_dir: str) -> None:
                 description="List all available specs in the project.",
                 inputSchema={"type": "object", "properties": {}},
             ),
+            Tool(
+                name="intake_validate",
+                description=(
+                    "Validate spec internal consistency. Checks cross-references, "
+                    "task dependencies, and acceptance check validity. "
+                    "Run this before starting implementation."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "spec_name": {"type": "string"},
+                        "strict": {"type": "boolean", "default": False},
+                    },
+                    "required": ["spec_name"],
+                },
+            ),
+            Tool(
+                name="intake_estimate",
+                description="Estimate LLM cost for generating or regenerating a spec.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "spec_name": {"type": "string"},
+                    },
+                    "required": ["spec_name"],
+                },
+            ),
         ]
 
     @server.call_tool()  # type: ignore[attr-defined, untyped-decorator]
@@ -190,6 +219,17 @@ def register_tools(server: object, specs_dir: str, project_dir: str) -> None:
                 )
             elif name == "intake_list_specs":
                 result = _handle_list_specs(specs_dir)
+            elif name == "intake_validate":
+                result = _handle_validate(
+                    specs_dir,
+                    str(arguments["spec_name"]),
+                    bool(arguments.get("strict", False)),
+                )
+            elif name == "intake_estimate":
+                result = _handle_estimate(
+                    specs_dir,
+                    str(arguments["spec_name"]),
+                )
             else:
                 result = f"Unknown tool: {name}"
 
@@ -425,3 +465,83 @@ def _handle_list_specs(specs_dir: str) -> str:
         return "No specs found."
 
     return "Available specs:\n" + "\n".join(f"  - {s}" for s in sorted(specs))
+
+
+def _handle_validate(specs_dir: str, spec_name: str, strict: bool) -> str:
+    """Handle the intake_validate tool call.
+
+    Args:
+        specs_dir: Base specs directory.
+        spec_name: Name of the spec to validate.
+        strict: Whether to treat warnings as errors.
+
+    Returns:
+        Formatted validation report.
+    """
+    from intake.config.schema import ValidateConfig
+    from intake.validate.checker import SpecValidator
+
+    config = ValidateConfig(strict=strict)
+    validator = SpecValidator(config)
+    report = validator.validate(str(Path(specs_dir) / spec_name))
+
+    lines: list[str] = []
+    if report.is_valid:
+        lines.append(f"Spec '{spec_name}' is valid")
+        lines.append(
+            f"   {report.requirements_found} requirements, "
+            f"{report.tasks_found} tasks, "
+            f"{report.checks_found} checks"
+        )
+    else:
+        lines.append(f"Spec '{spec_name}' has {len(report.errors)} errors")
+
+    for issue in report.issues:
+        icon = "ERROR" if issue.severity == "error" else "WARN"
+        lines.append(f"  [{icon}] [{issue.category}] {issue.message}")
+        if issue.suggestion:
+            lines.append(f"     Hint: {issue.suggestion}")
+
+    return "\n".join(lines)
+
+
+def _handle_estimate(specs_dir: str, spec_name: str) -> str:
+    """Handle the intake_estimate tool call.
+
+    Estimates cost by scanning existing spec files for word count.
+
+    Args:
+        specs_dir: Base specs directory.
+        spec_name: Name of the spec to estimate.
+
+    Returns:
+        Formatted cost estimate string.
+    """
+    from intake.estimate.estimator import CostEstimator
+
+    spec_path = Path(specs_dir) / spec_name
+    if not spec_path.exists():
+        return f"Spec '{spec_name}' not found in {specs_dir}"
+
+    # Collect all text files in the spec directory
+    file_paths = [
+        str(f) for f in spec_path.iterdir() if f.is_file() and f.suffix in (".md", ".yaml", ".yml")
+    ]
+
+    estimator = CostEstimator()
+    result = estimator.estimate_from_files(file_paths)
+
+    lines = [
+        f"Cost Estimate for '{spec_name}'",
+        f"  Model: {result.model}",
+        f"  Mode: {result.mode}{'  (auto-detected)' if result.mode_auto_detected else ''}",
+        f"  Input: ~{result.total_input_words:,} words -> ~{result.total_input_tokens:,} tokens",
+        f"  Output: ~{result.total_output_tokens:,} tokens (estimated)",
+        f"  LLM calls: {result.llm_calls}",
+        f"  Estimated cost: {result.formatted_cost} (~30% margin)",
+    ]
+
+    for w in result.warnings:
+        lines.append(f"  Warning: {w}")
+
+    return "\n".join(lines)

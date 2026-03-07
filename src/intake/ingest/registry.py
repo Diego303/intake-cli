@@ -164,9 +164,10 @@ class ParserRegistry:
 
         Detection order (most specific first):
         1. Jira export (``{"issues": [...]}`` or list with ``key`` + ``fields``)
-        2. GitHub Issues (objects with ``number`` + ``html_url``, or ``title`` + ``labels`` list)
-        3. Slack export (array of objects with ``type: "message"`` + ``ts``)
-        4. Generic structured YAML/JSON
+        2. GitLab Issues (objects with ``iid`` + ``title``)
+        3. GitHub Issues (objects with ``number`` + ``html_url``, or ``title`` + ``labels`` list)
+        4. Slack export (array of objects with ``type: "message"`` + ``ts``)
+        5. Generic structured YAML/JSON
 
         Args:
             path: Path to the JSON file.
@@ -180,6 +181,17 @@ class ParserRegistry:
 
             # --- Jira detection ---
             if isinstance(data, dict) and "issues" in data:
+                # Could be Jira or GitLab wrapped format
+                issues_list = data["issues"]
+                if isinstance(issues_list, list) and len(issues_list) > 0:
+                    first_issue = issues_list[0]
+                    if isinstance(first_issue, dict) and "iid" in first_issue:
+                        logger.debug(
+                            "json_subtype_detected",
+                            path=str(path),
+                            subtype="gitlab_issues",
+                        )
+                        return "gitlab_issues"
                 logger.debug("json_subtype_detected", path=str(path), subtype="jira")
                 return "jira"
 
@@ -190,6 +202,15 @@ class ParserRegistry:
                     if "key" in first and "fields" in first:
                         logger.debug("json_subtype_detected", path=str(path), subtype="jira")
                         return "jira"
+
+                    # GitLab Issues: has "iid" (not "number")
+                    if "iid" in first and "title" in first:
+                        logger.debug(
+                            "json_subtype_detected",
+                            path=str(path),
+                            subtype="gitlab_issues",
+                        )
+                        return "gitlab_issues"
 
                     # GitHub Issues: has "number" + ("html_url" or "title" + "labels")
                     if "number" in first and (
@@ -206,6 +227,11 @@ class ParserRegistry:
                     if first.get("type") == "message" and "ts" in first:
                         logger.debug("json_subtype_detected", path=str(path), subtype="slack")
                         return "slack"
+
+            # Single GitLab issue (not in a list)
+            if isinstance(data, dict) and "iid" in data and "title" in data:
+                logger.debug("json_subtype_detected", path=str(path), subtype="gitlab_issues")
+                return "gitlab_issues"
 
             # Single GitHub issue (not in a list)
             if (
@@ -286,6 +312,7 @@ def _create_manual_registry() -> ParserRegistry:
     from intake.ingest.confluence import ConfluenceParser
     from intake.ingest.docx import DocxParser
     from intake.ingest.github_issues import GithubIssuesParser
+    from intake.ingest.gitlab_issues import GitlabIssuesParser
     from intake.ingest.image import ImageParser
     from intake.ingest.jira import JiraParser
     from intake.ingest.markdown import MarkdownParser
@@ -307,6 +334,7 @@ def _create_manual_registry() -> ParserRegistry:
     registry.register("url", UrlParser())
     registry.register("slack", SlackParser())
     registry.register("github_issues", GithubIssuesParser())
+    registry.register("gitlab_issues", GitlabIssuesParser())
 
     logger.info("default_registry_created", source="manual", formats=registry.registered_formats)
     return registry

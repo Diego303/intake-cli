@@ -1,6 +1,6 @@
 [project]
 name = "intake-ai-cli"
-version = "0.5.0"
+version = "0.6.0"
 description = "From requirements in any format to verified implementation"
 readme = "README.md"
 license = {text = "MIT"}
@@ -59,6 +59,7 @@ dev = [
 connectors = [
     "atlassian-python-api>=3.40",
     "PyGithub>=2.0",
+    "python-gitlab>=8.0",
 ]
 watch = [
     "watchfiles>=0.21",
@@ -85,6 +86,7 @@ image = "intake.ingest.image:ImageParser"
 url = "intake.ingest.url:UrlParser"
 slack = "intake.ingest.slack:SlackParser"
 github_issues = "intake.ingest.github_issues:GithubIssuesParser"
+gitlab_issues = "intake.ingest.gitlab_issues:GitlabIssuesParser"
 
 [project.entry-points."intake.exporters"]
 architect = "intake.export.architect:ArchitectExporter"
@@ -98,6 +100,7 @@ copilot = "intake.export.copilot:CopilotExporter"
 jira = "intake.connectors.jira_api:JiraConnector"
 confluence = "intake.connectors.confluence_api:ConfluenceConnector"
 github = "intake.connectors.github_api:GithubConnector"
+gitlab = "intake.connectors.gitlab_api:GitlabConnector"
 
 [build-system]
 requires = ["hatchling"]
@@ -143,6 +146,8 @@ module = [
     "atlassian.*",
     "github",
     "github.*",
+    "gitlab",
+    "gitlab.*",
     "uvicorn",
     "uvicorn.*",
     "starlette",

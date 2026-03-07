@@ -1,6 +1,6 @@
 # Formatos de entrada
 
-intake soporta 11 formatos de entrada a traves de parsers especializados. El formato se auto-detecta por extension de archivo y contenido. Los parsers se descubren automaticamente via el [sistema de plugins](plugins.md).
+intake soporta 12 formatos de entrada a traves de parsers especializados. El formato se auto-detecta por extension de archivo y contenido. Los parsers se descubren automaticamente via el [sistema de plugins](plugins.md).
 
 ---
 
@@ -19,6 +19,7 @@ intake soporta 11 formatos de entrada a traves de parsers especializados. El for
 | URLs | `UrlParser` | `http://`, `https://` | httpx, bs4, markdownify | Contenido de paginas web como Markdown |
 | Slack | `SlackParser` | `.json` (auto-detectado) | — | Mensajes, threads, decisiones, action items |
 | GitHub Issues | `GithubIssuesParser` | `.json` (auto-detectado) | — | Issues, labels, comments, cross-references |
+| GitLab Issues | `GitlabIssuesParser` | `.json` (auto-detectado) | — | Issues, labels, notes, milestones, merge requests |
 
 ---
 
@@ -30,6 +31,7 @@ El registry detecta el formato automaticamente siguiendo este orden:
 2. **Extension del archivo**: mapeo directo (`.md` -> markdown, `.pdf` -> pdf, etc.)
 3. **Subtipo JSON**: si la extension es `.json`, se inspecciona el contenido en este orden:
    - Si tiene key `"issues"` o es una lista con objetos que tienen `"key"` + `"fields"` -> `jira`
+   - Si tiene campo `"iid"` (objeto o lista de objetos) -> `gitlab_issues`
    - Si es una lista con objetos que tienen `"number"` + (`"html_url"` o `"labels"`) -> `github_issues`
    - Si es una lista con objetos que tienen `"type": "message"` + `"ts"` -> `slack`
    - Si no matchea ningun subtipo -> `yaml` (se trata como datos estructurados)
@@ -39,7 +41,7 @@ El registry detecta el formato automaticamente siguiendo este orden:
 5. **URLs**: si la fuente empieza con `http://` o `https://` -> `url`
 6. **Fallback**: si no hay parser para el formato detectado -> `plaintext`
 
-**Nota:** La deteccion de subtipos JSON sigue un orden de prioridad estricto: Jira > GitHub Issues > Slack > YAML generico. Esto evita ambiguedades cuando un JSON tiene campos que podrian matchear multiples formatos.
+**Nota:** La deteccion de subtipos JSON sigue un orden de prioridad estricto: Jira > GitLab Issues > GitHub Issues > Slack > YAML generico. Esto evita ambiguedades cuando un JSON tiene campos que podrian matchear multiples formatos.
 
 ---
 
@@ -400,9 +402,59 @@ intake init "API review" -s https://wiki.company.com/rfc/auth
 
 ---
 
+### GitLab Issues
+
+**Extensiones:** `.json` (auto-detectado por estructura)
+
+**Deteccion:** El archivo JSON debe contener objetos con campo `"iid"` (internal ID de GitLab). Soporta un solo issue, una lista, o un formato wrapped `{"issues": [...]}`.
+
+**Que extrae:**
+
+- **Issues**: IID, titulo, descripcion, estado (opened/closed)
+- **Labels**: etiquetas del issue
+- **Assignees**: usuarios asignados
+- **Milestones**: hito asociado (titulo)
+- **Weight**: peso del issue (si existe)
+- **Task completion status**: progreso de checkboxes (count/completed_count)
+- **Discussion notes**: notas de discusion no-sistema (max 500 chars cada una)
+- **Merge requests**: MRs vinculados (como relaciones)
+
+**Formatos soportados:**
+
+```json
+// Formato individual (un solo issue)
+{
+  "iid": 42,
+  "title": "Implementar login SSO",
+  "description": "El login debe soportar SAML...",
+  "state": "opened",
+  "labels": ["feature", "auth"],
+  "milestone": {"title": "v2.0"},
+  "assignees": [{"username": "jdoe"}],
+  "notes": [
+    {"author": {"username": "dev"}, "body": "Implementado", "system": false}
+  ]
+}
+
+// Formato lista (multiples issues)
+[
+  {"iid": 42, "title": "...", ...},
+  {"iid": 43, "title": "...", ...}
+]
+
+// Formato wrapped
+{"issues": [{"iid": 42, ...}]}
+```
+
+**Metadata:** `source_type` ("gitlab_issues"), `issue_count`, `labels` (lista separada por comas), `milestone` (si existe)
+
+**Relaciones extraidas:** Merge requests vinculados (si existen).
+
+---
+
 ## Conectores API directos
 
-Ademas de archivos locales, intake puede obtener datos directamente de APIs usando URIs de esquema. Los conectores requieren configuracion en `.intake.yaml` y credenciales via variables de entorno.
+Ademas de archivos locales, intake puede obtener datos directamente de APIs usando URIs de esquema. Los conectores requieren configuracion en `.intake.yaml` y credenciales via variables de entorno. Actualmente hay 4 conectores: Jira, Confluence, GitHub y GitLab.
 
 ### Jira
 
@@ -464,6 +516,27 @@ intake init "Bug triage" -s github://org/repo/issues?labels=bug&state=open
 ```
 
 Los issues se descargan como JSON temporal y se parsean con `GithubIssuesParser`. Maximo 50 issues por consulta, 10 comentarios por issue.
+
+### GitLab
+
+**URIs soportadas:**
+
+| Patron | Que hace |
+|--------|---------|
+| `gitlab://group/project/issues/42` | Un solo issue |
+| `gitlab://group/project/issues/42,43,44` | Multiples issues |
+| `gitlab://group/project/issues?labels=bug&state=opened` | Issues filtrados |
+| `gitlab://group/project/milestones/3/issues` | Issues de un milestone |
+
+**Dependencia:** `python-gitlab` (instalar con `pip install "intake-ai-cli[connectors]"`)
+
+**Ejemplo:**
+
+```bash
+intake init "Sprint review" -s gitlab://team/backend/issues?labels=sprint&state=opened
+```
+
+Los issues se descargan como JSON temporal y se parsean con `GitlabIssuesParser`. Maximo 50 issues por consulta, 10 notas por issue. Soporta grupos anidados y SSL configurable.
 
 ### Configuracion de conectores
 

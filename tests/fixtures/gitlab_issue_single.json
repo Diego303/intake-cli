@@ -1,0 +1,44 @@
+{
+  "iid": 42,
+  "id": 1001,
+  "title": "Fix login page redirect loop",
+  "description": "When a user tries to log in with SSO, they get stuck in a redirect loop.\n\n## Steps to reproduce\n\n1. Go to /login\n2. Click 'Sign in with SSO'\n3. Get redirected back to /login repeatedly\n\n## Expected behavior\n\nUser should be redirected to the dashboard after SSO authentication.",
+  "state": "opened",
+  "labels": ["bug", "priority::high", "SSO"],
+  "milestone": "v2.0",
+  "assignees": ["jdoe", "asmith"],
+  "author": "pm_user",
+  "weight": 3,
+  "due_date": "2024-03-15",
+  "created_at": "2024-02-01T10:00:00Z",
+  "updated_at": "2024-02-05T14:30:00Z",
+  "web_url": "https://gitlab.example.com/mygroup/myproject/-/issues/42",
+  "confidential": false,
+  "task_completion_status": {
+    "count": 3,
+    "completed_count": 1
+  },
+  "_project_path": "mygroup/myproject",
+  "notes": [
+    {
+      "author": "asmith",
+      "body": "I can reproduce this consistently with Chrome and Firefox. The issue seems to be in the OAuth callback handler.",
+      "created_at": "2024-02-02T09:00:00Z",
+      "system": false
+    },
+    {
+      "author": "jdoe",
+      "body": "Traced it to the session cookie not being set correctly when SameSite=Strict is used.",
+      "created_at": "2024-02-03T11:00:00Z",
+      "system": false
+    }
+  ],
+  "merge_requests": [
+    {
+      "iid": 101,
+      "title": "Fix SSO redirect by setting SameSite=Lax",
+      "state": "merged",
+      "web_url": "https://gitlab.example.com/mygroup/myproject/-/merge_requests/101"
+    }
+  ]
+}

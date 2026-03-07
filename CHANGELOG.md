@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-03-07
+
+### Added
+
+#### GitLab API connector
+
+- **GitLab connector** (`connectors/gitlab_api.py`): Fetches issues from GitLab via python-gitlab v8.x. Supports single issue (`gitlab://group/project/issues/42`), multiple issues (`gitlab://group/project/issues/42,43`), filtered queries (`gitlab://group/project/issues?labels=bug&state=opened`), and milestone-based fetching (`gitlab://group/project/milestones/3/issues`). Nested group support (`gitlab://org/team/subgroup/project/issues/10`). Lazy import with clear `ImportError`. Configurable SSL verification for self-hosted instances.
+- **GitlabConfig** (`config/schema.py`): `url`, `token_env`, `auth_type`, `default_project`, `include_comments`, `include_merge_requests`, `max_notes`, `ssl_verify`.
+- **Doctor check**: `GITLAB_TOKEN` credential validation when GitLab connector is configured.
+- **Entry point** in `pyproject.toml`: `gitlab` under `[project.entry-points."intake.connectors"]`.
+
+#### GitLab Issues parser
+
+- **GitlabIssuesParser** (`ingest/gitlab_issues.py`): Parses GitLab Issues JSON (single object, array, or wrapped `{"issues": [...]}` format). Extracts titles, descriptions, labels, milestones, weights, assignees, discussion notes (truncated to 500 chars), and linked merge requests. Detects `#NNN` and `!NNN` cross-references as relations.
+- **JSON subtype detection** (`ingest/registry.py`): `iid` field detection for GitLab Issues (after Jira, before GitHub Issues in priority order).
+- **Entry point** in `pyproject.toml`: `gitlab_issues` under `[project.entry-points."intake.parsers"]`.
+
+#### Spec validator (`intake validate`)
+
+- **SpecValidator** (`validate/checker.py`): Offline spec quality gate with 5 check categories: structure (required files, YAML validity), cross_reference (requirements referenced in tasks, tasks in acceptance), consistency (task dependency cycles via DFS, duplicate IDs), acceptance (valid check types, required fields), completeness (orphaned requirements, tasks without acceptance checks). Compiled regex patterns as module constants.
+- **ValidateConfig** (`config/schema.py`): `strict` (treat warnings as errors), `required_sections`, `max_orphaned_requirements`.
+- **`intake validate`** CLI command with `--strict` and `--preset` options.
+
+#### Cost estimator (`intake estimate`)
+
+- **CostEstimator** (`estimate/estimator.py`): LLM cost estimation with 7-model pricing table (Claude Sonnet/Opus, GPT-4o/4o-mini/4-turbo, Gemini Flash/Pro). Supports `estimate_from_files()` and `estimate_from_sources()`. Three modes (quick/standard/enterprise) with different call multipliers. Budget warnings when estimated cost exceeds `max_cost_per_spec`. `TYPE_CHECKING` guard for `ParsedContent` import.
+- **EstimateConfig** (`config/schema.py`): `tokens_per_word`, `prompt_overhead_tokens`, `calls_per_mode`.
+- **`intake estimate`** CLI command with `--model` and `--mode` options.
+
+#### Custom template loading
+
+- **TemplateLoader** (`templates/loader.py`): Jinja2 `ChoiceLoader` that prioritizes user templates (configurable directory) over built-in `PackageLoader` templates. Lazy environment creation. Override detection with optional warning log.
+- **TemplatesConfig** (`config/schema.py`): `user_dir` (default: `.intake/templates`), `warn_on_override`.
+
+#### CI export (`intake export-ci`)
+
+- **`intake export-ci`** CLI command: Generates CI/CD pipeline configuration files. `--platform gitlab` generates `.gitlab-ci.yml`, `--platform github` generates `.github/workflows/intake-verify.yml`. Customizable output path with `--output`.
+- **`gitlab_ci.yml.j2`** template: GitLab CI pipeline with verify + report stages.
+- **`github_actions.yml.j2`** template: GitHub Actions workflow for spec verification.
+
+#### MCP tools (2 new, 9 total)
+
+- **`intake_validate`** MCP tool: Run offline spec validation via MCP. Uses `ValidateConfig` and `SpecValidator`.
+- **`intake_estimate`** MCP tool: Estimate LLM cost for a spec via MCP. Scans `.md`/`.yaml`/`.yml` files in the spec directory.
+
+#### Configuration
+
+- **GitlabConfig** added to `ConnectorsConfig`.
+- **ValidateConfig** added to `IntakeConfig` as `validate_spec` (alias `"validate"`).
+- **EstimateConfig** added to `IntakeConfig`.
+- **TemplatesConfig** added to `IntakeConfig`.
+
+#### Examples
+
+- **`examples/from-gitlab/`** (NEW): GitLab API connector walkthrough with URI format reference, self-hosted configuration, and troubleshooting guide. Includes sample `gitlab-issues.json` with 2 issues.
+
+#### Test suite
+
+- **882 tests** (up from 775), **0 failures**, **10 skipped**. 107 new tests added.
+- 5 new test files: `test_validate/test_checker.py` (24), `test_estimate/test_estimator.py` (24), `test_ingest/test_gitlab_issues.py` (19), `test_connectors/test_gitlab_api.py` (26), `test_templates/test_loader.py` (14).
+- 1 new fixture file: `tests/fixtures/gitlab_issues.json` (2 GitLab issues with notes, labels, MRs).
+
+### Fixed
+
+- **`gitlab://` URI routing** (`cli.py`): Added `"gitlab"` to connector routing tuple — previously `gitlab://` URIs were silently ignored.
+- **GitLab config injection** (`cli.py`): Added `"gitlab": config.connectors.gitlab` to config map — previously GitLab connector had no config.
+- **MCP tools docstring** (`mcp/tools.py`): Updated from "7 tools" to "9 tools" to reflect actual count.
+
 ## [0.5.0] - 2026-03-07
 
 ### Added

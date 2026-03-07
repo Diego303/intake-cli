@@ -1229,6 +1229,256 @@ def watch(
 
 
 # ---------------------------------------------------------------------------
+# Validate command
+# ---------------------------------------------------------------------------
+
+
+@main.command("validate")
+@click.argument("spec_dir", type=click.Path(exists=True))
+@click.option("--strict", is_flag=True, help="Strict mode: warnings become errors.")
+@click.option(
+    "--format",
+    "-f",
+    "report_format",
+    type=click.Choice(["terminal", "json"]),
+    default="terminal",
+    help="Report format.",
+)
+def validate_spec(spec_dir: str, strict: bool, report_format: str) -> None:
+    """Validate spec internal consistency (quality gate).
+
+    Checks cross-references, task dependencies, acceptance check validity,
+    and completeness. Runs offline — no LLM required.
+
+    Use this BEFORE handing a spec to an agent to catch structural issues.
+
+    Examples:
+
+      intake validate ./specs/auth
+
+      intake validate ./specs/auth --strict
+
+      intake validate ./specs/auth --format json
+
+    Exit codes: 0 = valid, 1 = errors found.
+    """
+    try:
+        from intake.validate.checker import SpecValidator
+
+        config = load_config()
+        if strict:
+            config.validate_spec.strict = True
+
+        validator = SpecValidator(config.validate_spec)
+        report = validator.validate(spec_dir)
+
+        if report_format == "json":
+            import json
+
+            output = {
+                "spec_dir": report.spec_dir,
+                "valid": report.is_valid,
+                "requirements": report.requirements_found,
+                "tasks": report.tasks_found,
+                "checks": report.checks_found,
+                "errors": [
+                    {
+                        "severity": i.severity,
+                        "category": i.category,
+                        "message": i.message,
+                        "file": i.file,
+                        "item_id": i.item_id,
+                    }
+                    for i in report.issues
+                ],
+            }
+            click.echo(json.dumps(output, indent=2))
+        else:
+            if report.is_valid:
+                console.print(
+                    f"\n[bold green]Spec is valid[/bold green] "
+                    f"({report.requirements_found} requirements, "
+                    f"{report.tasks_found} tasks, "
+                    f"{report.checks_found} checks)\n"
+                )
+            else:
+                console.print(
+                    f"\n[bold red]Spec has {len(report.errors)} error(s) "
+                    f"and {len(report.warnings)} warning(s)[/bold red]\n"
+                )
+
+            if report.issues:
+                table = Table(show_header=True)
+                table.add_column("Severity", width=8)
+                table.add_column("Category", width=16)
+                table.add_column("File", width=20)
+                table.add_column("Message")
+
+                for issue in report.issues:
+                    color = "red" if issue.severity == "error" else "yellow"
+                    table.add_row(
+                        f"[{color}]{issue.severity}[/{color}]",
+                        issue.category,
+                        issue.file,
+                        issue.message,
+                    )
+                console.print(table)
+
+            if report.warnings and not strict:
+                console.print("\n[dim]Use --strict to treat warnings as errors.[/dim]")
+
+        raise SystemExit(report.exit_code)
+
+    except SystemExit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(2)
+
+
+# ---------------------------------------------------------------------------
+# Estimate command
+# ---------------------------------------------------------------------------
+
+
+@main.command()
+@click.option(
+    "--source",
+    "-s",
+    multiple=True,
+    required=True,
+    help="Requirement sources to estimate (files or URIs).",
+)
+@click.option("--model", "-m", default=None, help="LLM model to estimate for (default: config).")
+@click.option(
+    "--mode",
+    default=None,
+    type=click.Choice(["quick", "standard", "enterprise"]),
+    help="Generation mode. Auto-detected if omitted.",
+)
+@click.option(
+    "--format",
+    "-f",
+    "report_format",
+    type=click.Choice(["terminal", "json"]),
+    default="terminal",
+    help="Report format.",
+)
+def estimate(
+    source: tuple[str, ...], model: str | None, mode: str | None, report_format: str
+) -> None:
+    """Estimate LLM cost before generating a spec.
+
+    Analyzes input sources and estimates token usage and dollar cost
+    without making any LLM calls.
+
+    Examples:
+
+      intake estimate -s requirements.md
+
+      intake estimate -s reqs.md -s notes.md --model gpt-4o-mini
+
+      intake estimate -s big-spec.pdf --mode enterprise
+
+    The estimate includes a ~30% margin of error.
+    """
+    try:
+        from intake.estimate.estimator import CostEstimator
+
+        config = load_config()
+        if model:
+            config.llm.model = model
+
+        estimator = CostEstimator(config.estimate, config.llm)
+        estimate_result = estimator.estimate_from_files(
+            list(source),
+            mode=mode,  # type: ignore[arg-type]
+        )
+
+        if report_format == "json":
+            import dataclasses
+            import json
+
+            click.echo(json.dumps(dataclasses.asdict(estimate_result), indent=2))
+        else:
+            from rich.panel import Panel
+
+            e = estimate_result
+
+            lines = [
+                f"[bold]Model:[/bold] {e.model}",
+                f"[bold]Mode:[/bold] {e.mode}{'  (auto-detected)' if e.mode_auto_detected else ''}",
+                f"[bold]Input:[/bold] ~{e.total_input_words:,} words -> "
+                f"~{e.total_input_tokens:,} tokens",
+                f"[bold]Output:[/bold] ~{e.total_output_tokens:,} tokens (estimated)",
+                f"[bold]LLM calls:[/bold] {e.llm_calls}",
+                "",
+                f"[bold]Estimated cost:[/bold] [green]{e.formatted_cost}[/green] (~30% margin)",
+            ]
+
+            for w in e.warnings:
+                lines.append(f"\n[yellow]Warning: {w}[/yellow]")
+
+            console.print(Panel("\n".join(lines), title="Cost Estimate", border_style="blue"))
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(2)
+
+
+# ---------------------------------------------------------------------------
+# Export-CI command
+# ---------------------------------------------------------------------------
+
+
+@main.command("export-ci")
+@click.argument("spec_dir", type=click.Path(exists=True))
+@click.option(
+    "--platform",
+    "-p",
+    required=True,
+    type=click.Choice(["github", "gitlab"]),
+    help="CI platform.",
+)
+@click.option("--output", "-o", default=".", type=click.Path(), help="Output directory.")
+def export_ci(spec_dir: str, platform: str, output: str) -> None:
+    """Generate CI config for spec verification.
+
+    Examples:
+
+      intake export-ci ./specs/auth -p gitlab
+
+      intake export-ci ./specs/auth -p github -o .github/workflows/
+    """
+    try:
+        from intake.templates.loader import TemplateLoader
+
+        loader = TemplateLoader()
+        out_path = Path(output)
+        out_path.mkdir(parents=True, exist_ok=True)
+
+        if platform == "gitlab":
+            template = loader.get_template("gitlab_ci.yml.j2")
+            content = template.render(spec_dir=spec_dir)
+            ci_path = out_path / ".gitlab-ci.yml"
+            ci_path.write_text(content)
+            console.print(f"[green]Generated {ci_path}[/green]")
+
+        elif platform == "github":
+            template = loader.get_template("github_actions.yml.j2")
+            content = template.render(spec_dir=spec_dir)
+            ci_dir = out_path / ".github" / "workflows"
+            ci_dir.mkdir(parents=True, exist_ok=True)
+            ci_path = ci_dir / "intake-verify.yml"
+            ci_path.write_text(content)
+            console.print(f"[green]Generated {ci_path}[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        sys.exit(2)
+
+
+# ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
@@ -1263,7 +1513,7 @@ def _resolve_and_parse_sources(
     for src in sources:
         uri = parse_source(src)
 
-        if uri.type in ("jira", "confluence", "github"):
+        if uri.type in ("jira", "confluence", "github", "gitlab"):
             fetched = _fetch_connector_source(uri.raw, uri.type, config)
             for fs in fetched:
                 try:
@@ -1383,6 +1633,7 @@ def _inject_connector_config(
         "jira": config.connectors.jira,
         "confluence": config.connectors.confluence,
         "github": config.connectors.github,
+        "gitlab": config.connectors.gitlab,
     }
     if name in config_map and hasattr(connector, "_config"):
         connector._config = config_map[name]

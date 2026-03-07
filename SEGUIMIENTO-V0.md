@@ -1,7 +1,7 @@
 # intake — Seguimiento de Implementación
 
 > Tracking detallado del progreso de implementación.
-> Actualizado: 2026-03-07 (v0.5.0 — Polish, Docs, CI/CD, Release)
+> Actualizado: 2026-03-07 (v0.6.0 — GitLab, Validate, Estimate, Templates, CI Export)
 
 ---
 
@@ -22,6 +22,7 @@
 | **v0.4.0** | QA Audit Phase 3 | **Aprobada** | 772/772 (83% cov, 0 ruff) |
 | **v0.5.0** | Phase 4: Polish, Docs, CI/CD | **Completada** | 775/775 |
 | **v0.5.0** | QA Audit Phase 4 | **Aprobada** | 775/775 (83% cov, 0 mypy, 0 ruff) |
+| **v0.6.0** | Phase 5: GitLab, Validate, Estimate, Templates, CI Export | **Completada** | 882/882 |
 
 ---
 
@@ -1345,3 +1346,238 @@
 - [x] README.md fully updated
 - [x] Error handling hardened
 - [x] Version bumped to 0.5.0
+
+---
+
+## Phase 5 — GitLab, Validate, Estimate, Templates, CI Export (v0.6.0) ✅
+
+> Implementada: 2026-03-07
+> Objetivo: Conector GitLab API + parser GitLab Issues, comando `intake validate` (quality gate offline), comando `intake estimate` (estimación de costos LLM), carga de templates personalizados, comando `intake export-ci` con soporte GitLab CI + GitHub Actions, 2 nuevas MCP tools.
+
+### Step 1: GitLab API Connector ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| GitlabConnector | `src/intake/connectors/gitlab_api.py` | ✅ | ConnectorPlugin protocol, lazy import python-gitlab v8.x |
+| URI patterns | — | ✅ | `gitlab://group/project/issues/42`, `gitlab://group/project/issues/42,43`, `gitlab://group/project/issues?labels=bug&state=opened`, `gitlab://group/project/milestones/3/issues` |
+| Nested groups | — | ✅ | `gitlab://org/team/subgroup/project/issues/10` |
+| Config injection | `src/intake/cli.py` | ✅ | `gitlab` añadido a `config_map` y tuple de routing |
+| SSL config | `src/intake/config/schema.py` | ✅ | `ssl_verify: bool = True` en GitlabConfig |
+| ConnectorError hierarchy | — | ✅ | Errores específicos con reason + suggestion |
+| Tests | `tests/test_connectors/test_gitlab_api.py` | ✅ | Mock gitlab.Gitlab, 26 tests |
+
+### Step 2: GitLab Issues Parser ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| GitlabIssuesParser | `src/intake/ingest/gitlab_issues.py` | ✅ | Detecta por campo `iid`, soporta single/array/wrapped |
+| MAX_NOTE_LENGTH | — | ✅ | 500 chars para notas/comments |
+| JSON subtype detection | `src/intake/ingest/registry.py` | ✅ | `iid` field → gitlab_issues (after jira, before github_issues) |
+| Manual registration | `src/intake/ingest/registry.py` | ✅ | Registrado en `create_default_registry()` |
+| Entry point | `pyproject.toml` | ✅ | `gitlab_issues = "intake.ingest.gitlab_issues:GitlabIssuesParser"` |
+| Fixture | `tests/fixtures/gitlab_issues.json` | ✅ | 2 issues con notas, labels, milestone, MRs |
+| Tests | `tests/test_ingest/test_gitlab_issues.py` | ✅ | 19 tests (single, array, wrapped, notes, MRs, labels) |
+
+### Step 3: Spec Validator (`intake validate`) ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| SpecValidator | `src/intake/validate/checker.py` | ✅ | 100% offline, 5 categorías de checks |
+| ValidationReport | `src/intake/validate/checker.py` | ✅ | is_valid, issues, errors, requirements_found, tasks_found, checks_found |
+| ValidationIssue | `src/intake/validate/checker.py` | ✅ | severity (error/warning), category, message, suggestion |
+| 5 check categories | — | ✅ | structure, cross_reference, consistency, acceptance, completeness |
+| DFS cycle detection | — | ✅ | Detecta ciclos en dependencias de tasks |
+| Compiled regex patterns | — | ✅ | `_REQ_ID_PATTERN`, `_TASK_REF_PATTERN`, `_DEP_PATTERN` como constantes |
+| ValidateConfig | `src/intake/config/schema.py` | ✅ | strict, required_sections, max_orphaned_requirements |
+| CLI command | `src/intake/cli.py` | ✅ | `intake validate` con opciones --strict, --preset |
+| __init__.py | `src/intake/validate/__init__.py` | ✅ | Exporta SpecValidator, ValidationReport, ValidateError |
+| Tests | `tests/test_validate/test_checker.py` | ✅ | 24 tests (estructura, cross-refs, ciclos, strict mode) |
+
+### Step 4: Cost Estimator (`intake estimate`) ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| CostEstimator | `src/intake/estimate/estimator.py` | ✅ | 7-model pricing table, 3 modos (quick/standard/enterprise) |
+| CostEstimate | `src/intake/estimate/estimator.py` | ✅ | Dataclass: model, mode, tokens, cost, formatted_cost, warnings |
+| estimate_from_sources | — | ✅ | Estima desde ParsedContent (TYPE_CHECKING guard) |
+| estimate_from_files | — | ✅ | Estima desde archivos .md/.yaml/.yml |
+| Budget warnings | — | ✅ | Aviso si costo estimado > max_cost_per_spec configurado |
+| EstimateConfig | `src/intake/config/schema.py` | ✅ | tokens_per_word, prompt_overhead_tokens, calls_per_mode |
+| CLI command | `src/intake/cli.py` | ✅ | `intake estimate` con opciones --model, --mode |
+| __init__.py | `src/intake/estimate/__init__.py` | ✅ | Exporta CostEstimator, CostEstimate, EstimateError |
+| Tests | `tests/test_estimate/test_estimator.py` | ✅ | 24 tests (from_files, from_sources, modos, warnings, modelos) |
+
+### Step 5: Template Loader (Custom Templates) ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| TemplateLoader | `src/intake/templates/loader.py` | ✅ | Jinja2 ChoiceLoader: user dir → PackageLoader |
+| Lazy env creation | — | ✅ | Environment creado una vez y cacheado |
+| Override detection | — | ✅ | Warning log cuando template de usuario sobreescribe built-in |
+| TemplatesConfig | `src/intake/config/schema.py` | ✅ | user_dir, warn_on_override |
+| Tests | `tests/test_templates/test_loader.py` | ✅ | 14 tests (load, override, custom dir, fallback) |
+
+### Step 6: CI Export (`intake export-ci`) ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| gitlab_ci.yml.j2 | `src/intake/templates/` | ✅ | Template GitLab CI con stages verify + report |
+| github_actions.yml.j2 | `src/intake/templates/` | ✅ | Template GitHub Actions workflow |
+| CLI command | `src/intake/cli.py` | ✅ | `intake export-ci --platform gitlab|github` con --output |
+
+### Step 7: MCP Tools (2 nuevas, 9 total) ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| intake_validate | `src/intake/mcp/tools.py` | ✅ | Valida spec consistency offline vía MCP |
+| intake_estimate | `src/intake/mcp/tools.py` | ✅ | Estima costo LLM vía MCP |
+| _handle_validate() | `src/intake/mcp/tools.py` | ✅ | Handler con ValidateConfig + SpecValidator |
+| _handle_estimate() | `src/intake/mcp/tools.py` | ✅ | Handler que escanea archivos del spec |
+| Docstring actualizado | `src/intake/mcp/tools.py` | ✅ | "7 tools" → "9 tools" |
+
+### Step 8: Config Schema Updates ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| GitlabConfig | `src/intake/config/schema.py` | ✅ | url, token_env, auth_type, default_project, include_comments, include_merge_requests, max_notes, ssl_verify |
+| ValidateConfig | `src/intake/config/schema.py` | ✅ | strict, required_sections, max_orphaned_requirements |
+| EstimateConfig | `src/intake/config/schema.py` | ✅ | tokens_per_word, prompt_overhead_tokens, calls_per_mode |
+| TemplatesConfig | `src/intake/config/schema.py` | ✅ | user_dir, warn_on_override |
+| ConnectorsConfig.gitlab | `src/intake/config/schema.py` | ✅ | Campo GitlabConfig añadido |
+| IntakeConfig.validate_spec | `src/intake/config/schema.py` | ✅ | Alias `"validate"` para evitar shadow de BaseModel |
+| IntakeConfig.estimate | `src/intake/config/schema.py` | ✅ | Campo EstimateConfig añadido |
+| IntakeConfig.templates | `src/intake/config/schema.py` | ✅ | Campo TemplatesConfig añadido |
+
+### Step 9: Integration Wiring ✅
+
+| Componente | Archivo | Estado | Notas |
+|------------|---------|--------|-------|
+| Source URI: gitlab:// | `src/intake/utils/source_uri.py` | ✅ | Esquema `gitlab://` en SCHEME_PATTERNS |
+| CLI connector routing | `src/intake/cli.py` | ✅ | `"gitlab"` añadido a tuple de routing |
+| CLI config injection | `src/intake/cli.py` | ✅ | `"gitlab": config.connectors.gitlab` en config_map |
+| Doctor: gitlab credentials | `src/intake/doctor/checks.py` | ✅ | Verificación GITLAB_TOKEN |
+| pyproject.toml entry points | `pyproject.toml` | ✅ | gitlab connector + gitlab_issues parser entry points |
+| pyproject.toml deps | `pyproject.toml` | ✅ | `python-gitlab>=4.0` en optional connectors |
+
+### Step 10: Example (from-gitlab) ✅
+
+| Componente | Directorio | Estado | Notas |
+|------------|------------|--------|-------|
+| README.md | `examples/from-gitlab/` | ✅ | URI patterns, self-hosted config, troubleshooting |
+| gitlab-issues.json | `examples/from-gitlab/` | ✅ | 2 issues de ejemplo con notas, MRs, labels |
+
+### Resumen de Archivos Phase 5
+
+**Archivos nuevos (18):**
+
+| # | Archivo | Propósito |
+|---|--------|-----------|
+| 1 | `src/intake/connectors/gitlab_api.py` | Conector GitLab API |
+| 2 | `src/intake/ingest/gitlab_issues.py` | Parser GitLab Issues JSON |
+| 3 | `src/intake/validate/__init__.py` | Módulo validate init + exports |
+| 4 | `src/intake/validate/checker.py` | Spec validator (5 categorías, DFS, offline) |
+| 5 | `src/intake/estimate/__init__.py` | Módulo estimate init + exports |
+| 6 | `src/intake/estimate/estimator.py` | Cost estimator (7 modelos, 3 modos) |
+| 7 | `src/intake/templates/loader.py` | Template loader con ChoiceLoader |
+| 8 | `src/intake/templates/gitlab_ci.yml.j2` | Template GitLab CI |
+| 9 | `src/intake/templates/github_actions.yml.j2` | Template GitHub Actions |
+| 10 | `examples/from-gitlab/README.md` | Ejemplo conector GitLab |
+| 11 | `examples/from-gitlab/gitlab-issues.json` | Fixture ejemplo GitLab |
+| 12 | `tests/test_validate/__init__.py` | Test package init |
+| 13 | `tests/test_validate/test_checker.py` | 24 tests para spec validator |
+| 14 | `tests/test_estimate/__init__.py` | Test package init |
+| 15 | `tests/test_estimate/test_estimator.py` | 24 tests para cost estimator |
+| 16 | `tests/test_ingest/test_gitlab_issues.py` | 19 tests para GitLab Issues parser |
+| 17 | `tests/test_connectors/test_gitlab_api.py` | 26 tests para GitLab connector |
+| 18 | `tests/fixtures/gitlab_issues.json` | Fixture 2 GitLab issues |
+
+**Archivos modificados (8):**
+
+| Archivo | Cambios |
+|---------|---------|
+| `src/intake/config/schema.py` | GitlabConfig, ValidateConfig, EstimateConfig, TemplatesConfig + campos en IntakeConfig |
+| `src/intake/connectors/__init__.py` | Export GitlabConnector |
+| `src/intake/ingest/registry.py` | JSON subtype detection para gitlab_issues + manual registration |
+| `src/intake/mcp/tools.py` | 2 nuevas tools (intake_validate, intake_estimate) + handlers |
+| `src/intake/utils/source_uri.py` | Esquema `gitlab://` |
+| `src/intake/doctor/checks.py` | GitLab credential check |
+| `src/intake/cli.py` | 3 nuevos comandos (validate, estimate, export-ci) + gitlab connector routing |
+| `pyproject.toml` | Entry points gitlab + deps python-gitlab |
+
+### Tests Phase 5 ✅
+
+**107 tests nuevos, 882 total, 0 failures, 10 skipped**
+
+| Test file | Tests | Estado |
+|-----------|-------|--------|
+| `tests/test_validate/test_checker.py` | 24 | ✅ |
+| `tests/test_estimate/test_estimator.py` | 24 | ✅ |
+| `tests/test_ingest/test_gitlab_issues.py` | 19 | ✅ |
+| `tests/test_connectors/test_gitlab_api.py` | 26 | ✅ |
+| `tests/test_templates/test_loader.py` | 14 | ✅ |
+
+### Quality Gates Phase 5 ✅
+
+| Gate | Estado | Resultado |
+|------|--------|-----------|
+| `python3.12 -m pytest tests/` | ✅ | 882 passed, 10 skipped |
+| `ruff check src/ tests/` | ✅ | All checks passed! |
+| `ruff format --check src/ tests/` | ✅ | 0 issues |
+| `mypy src/intake/ --strict` | ✅ | 0 errors |
+
+### Distribución de Tests (882 total)
+
+| Área | Tests |
+|------|-------|
+| CLI | 50 |
+| Config | 37 |
+| Ingest (parsers + registry) | 155 (+19) |
+| Analyze | 62 |
+| Generate | 37 |
+| Export | 112 |
+| Verify | 26 |
+| Diff | 12 |
+| Doctor | 25 |
+| Plugins | 34 |
+| Connectors | 59 (+26) |
+| Utils | 63 |
+| MCP | 66 |
+| Watch | 27 |
+| Feedback | 26 |
+| **Validate** | **24** |
+| **Estimate** | **24** |
+| **Templates** | **14** |
+
+### Decisiones Técnicas Phase 5
+
+39. **python-gitlab v8.x lazy import**: El connector importa `gitlab` lazily dentro de `fetch()`. ImportError con mensaje claro indicando `pip install intake-ai-cli[connectors]`.
+
+40. **GitLab nested groups**: El URI parsing separa project path de issue path buscando `/issues/` en la URI. Todo lo anterior es el project path, lo que soporta grupos anidados (`org/team/subgroup/project`).
+
+41. **Validator 100% offline**: El módulo `validate/` no importa de `llm/` ni de `analyze/`. Usa solo parsing de Markdown y YAML para verificar consistencia interna del spec.
+
+42. **DFS cycle detection en tasks**: `_check_dependency_cycles()` implementa DFS con conjuntos `visited` y `in_stack` para detectar ciclos en el grafo de dependencias de tasks. Reporta el ciclo completo como error.
+
+43. **ValidateConfig alias**: `IntakeConfig.validate_spec` usa `alias="validate"` porque `validate` es un método de Pydantic BaseModel y no puede usarse como nombre de campo directo.
+
+44. **CostEstimator 7-model pricing**: Tabla de precios para claude-sonnet-4, claude-opus-4, gpt-4o, gpt-4o-mini, gpt-4-turbo, gemini-2.0-flash, gemini-2.5-pro. Fallback a precio de claude-sonnet-4 para modelos desconocidos.
+
+45. **Template ChoiceLoader**: Jinja2 `ChoiceLoader` prioriza templates del usuario (`user_dir`) sobre built-in (`PackageLoader`). Cuando un template de usuario sobreescribe un built-in, se emite un `logger.info` si `warn_on_override` está habilitado.
+
+46. **MCP estimate handler**: `_handle_estimate()` escanea archivos `.md`/`.yaml`/`.yml` del directorio del spec para estimar costo sin requerir las sources originales.
+
+### Phase Sign-off
+
+- [x] All tests pass (882/882, 10 skipped)
+- [x] mypy strict: zero errors
+- [x] ruff check: zero warnings
+- [x] ruff format: zero issues
+- [x] No regression in v0.5.0 tests
+- [x] All Phase 5 features covered by tests
+- [x] GitLab connector + parser functional
+- [x] `intake validate` functional
+- [x] `intake estimate` functional
+- [x] `intake export-ci` functional
+- [x] 2 new MCP tools (validate, estimate)
+- [x] Custom template loading functional
+- [x] Example from-gitlab created

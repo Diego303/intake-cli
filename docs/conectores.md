@@ -1,11 +1,12 @@
 # Conectores
 
-Los conectores API directos permiten obtener datos desde Jira, Confluence y GitHub sin exportar archivos manualmente. Se usan mediante URIs de esquema en el flag `-s`.
+Los conectores API directos permiten obtener datos desde Jira, Confluence, GitHub y GitLab sin exportar archivos manualmente. Se usan mediante URIs de esquema en el flag `-s`.
 
 ```bash
 intake init "Sprint tasks" -s jira://PROJ/sprint/42
 intake init "RFC review" -s confluence://ENG/Architecture-RFC
 intake init "Bug triage" -s github://org/repo/issues?labels=bug
+intake init "Sprint review" -s gitlab://team/project/issues?labels=sprint
 ```
 
 ---
@@ -20,7 +21,7 @@ Los conectores requieren dependencias opcionales:
 pip install "intake-ai-cli[connectors]"
 ```
 
-Esto instala `atlassian-python-api` (Jira, Confluence) y `PyGithub` (GitHub).
+Esto instala `atlassian-python-api` (Jira, Confluence), `PyGithub` (GitHub) y `python-gitlab` (GitLab).
 
 ### Configuracion
 
@@ -38,6 +39,9 @@ connectors:
     email_env: CONFLUENCE_EMAIL
   github:
     token_env: GITHUB_TOKEN
+  gitlab:
+    url: "https://gitlab.example.com"
+    token_env: GITLAB_TOKEN
 ```
 
 ```bash
@@ -46,6 +50,9 @@ export JIRA_EMAIL=dev@company.com
 export CONFLUENCE_API_TOKEN=tu-api-token
 export CONFLUENCE_EMAIL=dev@company.com
 export GITHUB_TOKEN=ghp_tu-personal-access-token
+
+# GitLab
+export GITLAB_TOKEN=glpat-tu-personal-access-token
 ```
 
 ### Verificacion
@@ -227,6 +234,99 @@ Los issues se guardan como JSON temporal compatible con `GithubIssuesParser`:
 - Labels, assignees, milestone
 - Comentarios (hasta 10 por issue)
 - Cross-references (`#NNN`) en body y comments
+
+---
+
+## GitLab
+
+Obtiene issues directamente de la API de GitLab Cloud o instancias self-hosted (CE/EE).
+
+### URIs soportadas
+
+| URI | Que hace |
+|-----|---------|
+| `gitlab://group/project/issues/42` | Un solo issue |
+| `gitlab://group/project/issues/42,43,44` | Multiples issues separados por coma |
+| `gitlab://group/project/issues?labels=bug&state=opened` | Issues filtrados |
+| `gitlab://group/project/milestones/3/issues` | Issues de un milestone |
+
+### Parametros de filtrado
+
+| Parametro | Descripcion | Ejemplo |
+|-----------|-------------|---------|
+| `labels` | Filtrar por labels (separados por coma) | `labels=bug,urgent` |
+| `state` | Estado del issue | `state=opened`, `state=closed` |
+| `milestone` | Filtrar por milestone | `milestone=v2.0` |
+| `assignee_username` | Filtrar por usuario asignado | `assignee_username=jdoe` |
+| `search` | Busqueda por texto | `search=login` |
+| `order_by` | Ordenar por campo | `order_by=updated_at` |
+| `sort` | Direccion de orden | `sort=asc` |
+
+### Ejemplos
+
+```bash
+# Un issue especifico
+intake init "Fix auth bug" -s gitlab://team/backend/issues/42
+
+# Multiples issues
+intake init "Sprint review" -s gitlab://team/backend/issues/42,43,44
+
+# Bugs abiertos
+intake init "Bug triage" -s "gitlab://team/backend/issues?labels=bug&state=opened"
+
+# Issues de un milestone
+intake init "v2.0 features" -s gitlab://team/backend/milestones/3/issues
+
+# Grupos anidados
+intake init "Platform tasks" -s gitlab://org/team/subgroup/project/issues?state=opened
+```
+
+### Configuracion completa
+
+```yaml
+connectors:
+  gitlab:
+    url: "https://gitlab.example.com"           # Requerido. Default: https://gitlab.com
+    token_env: GITLAB_TOKEN                      # Variable de entorno con el access token
+    auth_type: token                              # token | oauth
+    default_project: ""                           # Proyecto por defecto
+    include_comments: true                        # Incluir discussion notes
+    include_merge_requests: false                 # Incluir MRs vinculados
+    max_notes: 10                                 # Max notas por issue
+    ssl_verify: true                              # Verificar certificados SSL
+```
+
+### Grupos anidados
+
+GitLab soporta grupos anidados (ej: `org/team/subgroup/project`). El conector detecta automaticamente la separacion entre el path del proyecto y el recurso buscando las keywords `issues` o `milestones` en la URI.
+
+### Limites
+
+- Maximo **50 issues** por consulta
+- Maximo **10 notas** por issue (configurable via `max_notes`)
+- Requiere un Personal Access Token con scope `read_api`
+
+### Que extrae
+
+Los issues se guardan como JSON temporal compatible con `GitlabIssuesParser`:
+
+- IID, title, description, state
+- Labels, milestone, weight, assignees
+- Task completion status (checkbox progress)
+- Discussion notes (non-system, hasta `max_notes`)
+- Merge requests vinculados (si `include_merge_requests: true`)
+- Metadata: author, due_date, created_at, updated_at, web_url
+
+### Instancias self-hosted
+
+Para instancias con certificados auto-firmados:
+
+```yaml
+connectors:
+  gitlab:
+    url: "https://gitlab.internal.company.com"
+    ssl_verify: false    # Deshabilitar verificacion SSL
+```
 
 ---
 

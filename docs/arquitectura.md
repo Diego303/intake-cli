@@ -21,7 +21,7 @@ config/                   <- Se carga primero, se inyecta en todos los modulos
   |
 plugins/                  <- Descubrimiento de plugins via entry_points (PEP 621)
   |
-ingest/                   <- FASE 1: 11 parsers + plugin discovery. Sin dependencia de LLM.
+ingest/                   <- FASE 1: 12 parsers + plugin discovery. Sin dependencia de LLM.
   |
 analyze/                  <- FASE 2: Unico modulo que habla con el LLM + clasificacion de complejidad
   |
@@ -31,12 +31,14 @@ verify/                   <- FASE 4: Ejecucion de subprocesos. Sin dependencia d
   |
 export/                   <- FASE 5: Generacion de archivos + plugin discovery. Sin dependencia de LLM.
 
-connectors/               <- 3 conectores API: Jira, Confluence, GitHub (async fetch)
+connectors/               <- 4 conectores API: Jira, Confluence, GitHub, GitLab (async fetch)
   |
 feedback/                 <- Feedback loop: analisis de fallos + enmiendas a la spec (requiere LLM)
 
 mcp/                      <- Servidor MCP: tools, resources, prompts (requiere LLM para feedback)
 watch/                    <- Watch mode: monitoreo de archivos + re-verificacion (usa verify/)
+validate/                 <- Standalone: validacion interna de specs (quality gate, offline)
+estimate/                 <- Standalone: estimacion de costos LLM (offline)
 
 diff/                     <- Standalone: compara directorios de specs
 doctor/                   <- Standalone: checks del entorno + validacion de credenciales
@@ -46,7 +48,7 @@ utils/                    <- Compartido: usado por cualquier modulo
 
 ### Regla critica de aislamiento
 
-Los modulos `ingest/`, `generate/`, `verify/`, `export/`, `diff/` y `doctor/` **nunca** importan de `llm/` ni de `analyze/`. Esto garantiza que todo excepto `init`, `add` y `feedback` funcione offline.
+Los modulos `ingest/`, `generate/`, `verify/`, `export/`, `diff/`, `doctor/`, `validate/` y `estimate/` **nunca** importan de `llm/` ni de `analyze/`. Esto garantiza que todo excepto `init`, `add` y `feedback` funcione offline.
 
 Excepciones documentadas:
 - `ImageParser` acepta un callable de vision inyectado (no importa directamente del LLM)
@@ -60,7 +62,7 @@ Excepciones documentadas:
 src/intake/
 ├── cli.py                  # Click CLI — adaptador delgado, sin logica
 ├── config/                 # Modelos Pydantic v2, presets, loader
-│   ├── schema.py           #   11 modelos de config (LLM, Project, Spec, Verification, Export, Security, Connectors, Feedback, MCP, Watch, Intake)
+│   ├── schema.py           #   15 modelos de config (LLM, Project, Spec, Verification, Export, Security, Connectors, Feedback, MCP, Watch, Validate, Estimate, Templates, GitLab, Intake)
 │   ├── presets.py           #   minimal / standard / enterprise
 │   ├── loader.py            #   Merge por capas: defaults -> preset -> YAML -> CLI
 │   └── defaults.py          #   Constantes centralizadas
@@ -68,12 +70,13 @@ src/intake/
 │   ├── protocols.py         #   Protocolos V2: ParserPlugin, ExporterPlugin, ConnectorPlugin
 │   ├── discovery.py         #   Descubrimiento via importlib.metadata.entry_points()
 │   └── hooks.py             #   Sistema de hooks del pipeline (HookManager)
-├── connectors/             # 3 conectores API directos (async fetch + plugin protocol)
+├── connectors/             # 4 conectores API directos (async fetch + plugin protocol)
 │   ├── base.py              #   ConnectorRegistry, ConnectorError
 │   ├── jira_api.py          #   Jira: issues, JQL, sprints via atlassian-python-api
 │   ├── confluence_api.py    #   Confluence: paginas por ID, space/titulo, CQL
-│   └── github_api.py        #   GitHub: issues individuales, filtrados, por labels
-├── ingest/                 # Fase 1 — 11 parsers + registry + plugin discovery + auto-deteccion
+│   ├── github_api.py        #   GitHub: issues individuales, filtrados, por labels
+│   └── gitlab_api.py        #   GitLab: issues, milestones, grupos anidados via python-gitlab
+├── ingest/                 # Fase 1 — 12 parsers + registry + plugin discovery + auto-deteccion
 │   ├── base.py              #   ParsedContent dataclass + Parser Protocol
 │   ├── registry.py          #   Auto-deteccion + plugin discovery + dispatch de parsers
 │   ├── markdown.py          #   .md con YAML front matter
@@ -86,7 +89,8 @@ src/intake/
 │   ├── image.py             #   Analisis de imagenes via LLM vision
 │   ├── url.py               #   HTTP/HTTPS URLs via httpx + markdownify
 │   ├── slack.py             #   Exports JSON de Slack (mensajes, threads, decisiones)
-│   └── github_issues.py     #   GitHub Issues JSON (issues, labels, comments)
+│   ├── github_issues.py     #   GitHub Issues JSON (issues, labels, comments)
+│   └── gitlab_issues.py     #   GitLab Issues JSON (issues, notes, milestones, MRs)
 ├── analyze/                # Fase 2 — Orquestacion LLM (async) + clasificacion
 │   ├── analyzer.py          #   Orquestador: extraction -> dedup -> risk -> design
 │   ├── prompts.py           #   3 system prompts (extraction, risk, design)
@@ -129,13 +133,13 @@ src/intake/
 ├── mcp/                    # Servidor MCP (Model Context Protocol)
 │   ├── __init__.py         #   MCPError + re-exports (create_server, run_stdio, run_sse)
 │   ├── server.py           #   Creacion del servidor + transportes stdio/SSE
-│   ├── tools.py            #   7 tools: show, context, tasks, update, verify, feedback, list
+│   ├── tools.py            #   9 tools: show, context, tasks, update, verify, feedback, list, validate, estimate
 │   ├── resources.py        #   Recursos dinamicos: intake://specs/{name}/{section}
 │   └── prompts.py          #   Templates: implement_next_task, verify_and_fix
 ├── watch/                  # Watch mode (monitoreo + re-verificacion)
 │   ├── __init__.py         #   WatchError exception
 │   └── watcher.py          #   SpecWatcher con watchfiles (Rust-based)
-├── templates/              # 15 templates Jinja2 (6 spec + 3 claude-code + 3 kiro + 1 cursor + 1 copilot + 1 feedback)
+├── templates/              # 17 templates Jinja2 (6 spec + 3 claude-code + 3 kiro + 1 cursor + 1 copilot + 1 feedback + 2 CI)
 │   ├── requirements.md.j2
 │   ├── design.md.j2
 │   ├── tasks.md.j2          #   Incluye columna de Status por tarea
@@ -150,11 +154,18 @@ src/intake/
 │   ├── kiro_design.md.j2    #   Diseno en formato Kiro
 │   ├── kiro_tasks.md.j2     #   Tareas en formato Kiro
 │   ├── copilot_instructions.md.j2  #   Instrucciones para Copilot
-│   └── feedback.md.j2       #   Formato de sugerencias de feedback
+│   ├── feedback.md.j2       #   Formato de sugerencias de feedback
+│   ├── gitlab_ci.yml.j2     #   Template CI para GitLab
+│   ├── github_actions.yml.j2 #  Template CI para GitHub Actions
+│   └── loader.py            #   TemplateLoader con soporte de overrides de usuario
+├── validate/               # Validacion interna de specs (quality gate, offline)
+│   └── checker.py           #   5 categorias: structure, cross_reference, consistency, acceptance, completeness
+├── estimate/               # Estimacion de costos LLM (offline)
+│   └── estimator.py         #   Pricing table, estimacion por modo, budget warnings
 └── utils/                  # Utilidades compartidas
     ├── file_detect.py       #   Deteccion de formato por extension
     ├── project_detect.py    #   Auto-deteccion del stack tecnologico
-    ├── source_uri.py        #   Parsing de URIs: file, stdin, url, jira://, github://
+    ├── source_uri.py        #   Parsing de URIs: file, stdin, url, jira://, github://, gitlab://
     ├── task_state.py        #   Gestion de estado de tareas en tasks.md
     ├── cost.py              #   Tracking de costos con desglose por fase
     └── logging.py           #   Configuracion de structlog
@@ -280,6 +291,8 @@ MCPError
 
 WatchError
 
+ValidationError
+
 TaskStateError
 ```
 
@@ -309,6 +322,7 @@ TaskStateError
 | `atlassian-python-api` | >=3.40 | Conectores Jira y Confluence |
 | `PyGithub` | >=2.0 | Conector GitHub |
 | `mcp` | >=1.0 | Servidor MCP (tools, resources, prompts) |
+| `python-gitlab` | >=4.0 | Conector GitLab |
 | `watchfiles` | >=1.0 | Watch mode (monitoreo de archivos, Rust-based) |
 
 ---
@@ -323,9 +337,9 @@ Los plugins se descubren automaticamente via `importlib.metadata.entry_points()`
 
 | Grupo | Contenido |
 |-------|-----------|
-| `intake.parsers` | 11 parsers built-in |
+| `intake.parsers` | 12 parsers built-in |
 | `intake.exporters` | 6 exporters built-in (2 V1 + 4 V2) |
-| `intake.connectors` | 3 connectors built-in (Jira, Confluence, GitHub) |
+| `intake.connectors` | 4 connectors built-in (Jira, Confluence, GitHub, GitLab) |
 
 Los registries (`ParserRegistry`, `ExporterRegistry`) intentan plugin discovery primero y caen back a registro manual si falla. Esto permite que plugins externos se registren automaticamente con solo instalar el paquete.
 

@@ -1,0 +1,33 @@
+checks:
+  - id: AC-01
+    name: "Test check (FR-01)"
+    type: command
+    command: "pytest"
+    tags: [FR-01]
+
+  - name: "Missing ID check"
+    type: files_exist
+    paths:
+      - src/app.py
+
+  - id: AC-03
+    name: "Invalid type check"
+    type: invalid_type
+    command: "echo hello"
+
+  - id: AC-04
+    name: "Empty command check"
+    type: command
+    command: ""
+
+  - id: AC-05
+    name: "No paths check"
+    type: files_exist
+
+  - id: AC-06
+    name: "Bad regex"
+    type: pattern_present
+    paths:
+      - "**/*.py"
+    patterns:
+      - "[invalid(regex"
