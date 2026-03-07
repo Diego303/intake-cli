@@ -460,3 +460,16 @@ intake init "Mi feature" -s reqs.md
 intake init "Mi feature" -s reqs.md -f claude-code
 intake export specs/mi-feature/ -f cursor -o .
 ```
+
+---
+
+## Export CI
+
+Ademas de los formatos para agentes, intake puede generar configuracion CI para verificacion automatica:
+
+```bash
+intake export-ci specs/mi-feature/ -p gitlab    # Genera .gitlab-ci.yml
+intake export-ci specs/mi-feature/ -p github    # Genera .github/workflows/intake-verify.yml
+```
+
+Ver [Guia CLI > export-ci](guia-cli.md#intake-export-ci) y [Integracion CI/CD](integracion-cicd.md) para mas detalles.

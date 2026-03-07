@@ -371,6 +371,32 @@ class DoctorChecks:
                     )
                 )
 
+        # Check GitLab credentials
+        gitlab_cfg = connectors.get("gitlab", {})
+        if isinstance(gitlab_cfg, dict) and gitlab_cfg.get("url"):
+            # Only check if URL is non-default (i.e. not just "https://gitlab.com")
+            token_env = gitlab_cfg.get("token_env", "GITLAB_TOKEN")
+            if os.environ.get(token_env):
+                results.append(
+                    DiagnosticResult(
+                        name="GitLab connector",
+                        passed=True,
+                        message=f"Token set ({token_env})",
+                    )
+                )
+            elif gitlab_cfg.get("token_env"):
+                results.append(
+                    DiagnosticResult(
+                        name="GitLab connector",
+                        passed=False,
+                        message=f"Missing token: {token_env}",
+                        fix_hint=(
+                            f"Set environment variable: {token_env}. "
+                            f"Create a personal access token with 'read_api' scope."
+                        ),
+                    )
+                )
+
         return results
 
     def _fix_install_package(self, description: str) -> FixResult:

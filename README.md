@@ -109,6 +109,18 @@ intake export ./specs/auth -f cursor -o .
 intake export ./specs/auth -f kiro -o .
 intake export ./specs/auth -f copilot -o .
 
+# Validate spec consistency (offline, no LLM needed)
+intake validate ./specs/auth-oauth2
+intake validate ./specs/auth-oauth2 --strict
+
+# Estimate LLM cost before generating
+intake estimate ./specs/auth-oauth2
+intake estimate ./specs/auth --model gpt-4o --mode enterprise
+
+# Generate CI/CD pipeline config
+intake export-ci ./specs/auth --platform gitlab -o .gitlab-ci.yml
+intake export-ci ./specs/auth --platform github -o .github/workflows/verify.yml
+
 # Analyze verification failures and get fix suggestions
 intake feedback ./specs/auth-oauth2
 intake feedback ./specs/auth -r report.json --apply --agent-format claude-code
@@ -141,8 +153,10 @@ intake task update ./specs/auth-oauth2 1 done --note "Implemented and tested"
 | **Jira API** | `jira://PROJ-123` | Live issue fetching via REST API |
 | **Confluence API** | `confluence://SPACE/Title` | Live page fetching via REST API |
 | **GitHub API** | `github://org/repo/issues/42` | Live issue fetching via PyGithub |
+| GitLab Issues | `.json` (auto-detected) | Issues, labels, notes, merge requests, milestones |
+| **GitLab API** | `gitlab://group/project/issues/42` | Live issue fetching via python-gitlab |
 
-Format is auto-detected by file extension and content inspection. Jira, Slack, and GitHub Issues JSON exports are distinguished automatically from generic JSON files. Confluence HTML is distinguished from generic HTML.
+Format is auto-detected by file extension and content inspection. Jira, Slack, GitHub Issues, and GitLab Issues JSON exports are distinguished automatically from generic JSON files. Confluence HTML is distinguished from generic HTML.
 
 ### Live API Connectors
 
@@ -160,6 +174,11 @@ intake init "Docs" -s confluence://SPACE/Page-Title
 # GitHub: single/multiple issues, filtered queries
 intake init "Bugs" -s github://org/repo/issues/42
 intake init "Bugs" -s "github://org/repo/issues?labels=bug&state=open"
+
+# GitLab: single/multiple issues, filtered, milestone
+intake init "Sprint" -s gitlab://mygroup/myproject/issues/42
+intake init "Sprint" -s "gitlab://mygroup/myproject/issues?labels=bug&state=opened"
+intake init "Release" -s gitlab://mygroup/myproject/milestones/3/issues
 ```
 
 Configure credentials in `.intake.yaml`:
@@ -174,6 +193,9 @@ connectors:
     # Set CONFLUENCE_API_TOKEN and CONFLUENCE_EMAIL env vars
   github:
     # Set GITHUB_TOKEN env var
+  gitlab:
+    url: https://gitlab.com  # or https://gitlab.mycompany.com
+    # Set GITLAB_TOKEN env var
 ```
 
 ---
@@ -197,6 +219,9 @@ connectors:
 | `intake plugins check` | Validate plugin compatibility | **Available** |
 | `intake task list` | List tasks from a spec with current status | **Available** |
 | `intake task update` | Update a task's status (pending/in_progress/done/blocked) | **Available** |
+| `intake validate` | Validate spec internal consistency (offline quality gate) | **Available** |
+| `intake estimate` | Estimate LLM cost for generating a spec | **Available** |
+| `intake export-ci` | Generate CI/CD pipeline config (GitLab CI or GitHub Actions) | **Available** |
 | `intake mcp serve` | Start MCP server (stdio or SSE transport) | **Available** |
 | `intake watch` | Watch project files and re-run verification on changes | **Available** |
 
@@ -232,12 +257,29 @@ feedback:
   max_suggestions: 10          # Max suggestions per analysis
   include_code_snippets: true  # Include code examples in suggestions
 
+validate:
+  strict: false                # Treat warnings as errors
+  required_sections:           # Files required in every spec
+    - requirements.md
+    - tasks.md
+    - acceptance.yaml
+
+estimate:
+  tokens_per_word: 1.35        # Token estimation ratio
+
+templates:
+  user_dir: .intake/templates  # Custom template overrides
+  warn_on_override: true       # Log when user template overrides built-in
+
 connectors:
   jira:
     url: https://your-org.atlassian.net
   confluence:
     url: https://your-org.atlassian.net/wiki
   github: {}                   # Uses GITHUB_TOKEN env var
+  gitlab:
+    url: https://gitlab.com    # or https://gitlab.mycompany.com
+    ssl_verify: true           # Set false for self-signed certificates
 
 mcp:
   specs_dir: ./specs           # Where specs live
@@ -286,6 +328,7 @@ See the [`examples/`](examples/) directory for ready-to-run scenarios:
 | [`multi-source`](examples/multi-source/) | Combining Markdown + Jira JSON + text notes |
 | [`quick-mode`](examples/quick-mode/) | Simple task with minimal output |
 | [`mcp-session`](examples/mcp-session/) | MCP server setup and walkthrough |
+| [`from-gitlab`](examples/from-gitlab/) | GitLab API connector (live or offline JSON) |
 | [`feedback-loop`](examples/feedback-loop/) | Verify, analyze failures, fix, repeat |
 | [`plugin-custom-parser`](examples/plugin-custom-parser/) | How to create a custom parser plugin |
 
@@ -297,7 +340,7 @@ See the [`examples/`](examples/) directory for ready-to-run scenarios:
 src/intake/
 ├── cli.py                  # Click CLI — thin adapter, no logic
 ├── config/                 # Pydantic v2 models, presets, layered loader
-│   ├── schema.py           #   11 config models (LLM, Project, Spec, Verification, Export, Security, Connectors, Feedback, MCP, Watch)
+│   ├── schema.py           #   15 config models (LLM, Project, Spec, Verification, Export, Security, Connectors, Feedback, MCP, Watch, Validate, Estimate, Templates, GitLab)
 │   ├── presets.py           #   minimal / standard / enterprise presets
 │   ├── loader.py            #   Layered merge: defaults → preset → YAML → CLI
 │   └── defaults.py          #   Centralized constants
@@ -309,8 +352,9 @@ src/intake/
 │   ├── base.py              #   ConnectorRegistry, ConnectorError
 │   ├── jira_api.py          #   Jira REST API (single/multi/JQL/sprint)
 │   ├── confluence_api.py    #   Confluence REST API (page/space/CQL)
-│   └── github_api.py        #   GitHub API via PyGithub (issues/filters)
-├── ingest/                 # Phase 1 — 11 parsers, registry, auto-detection
+│   ├── github_api.py        #   GitHub API via PyGithub (issues/filters)
+│   └── gitlab_api.py        #   GitLab API via python-gitlab (issues/milestones)
+├── ingest/                 # Phase 1 — 12 parsers, registry, auto-detection
 │   ├── base.py              #   ParsedContent dataclass + Parser Protocol
 │   ├── registry.py          #   Auto-detection + plugin discovery + parser dispatch
 │   ├── markdown.py          #   .md with YAML front matter
@@ -323,7 +367,8 @@ src/intake/
 │   ├── image.py             #   Image analysis via LLM vision
 │   ├── url.py               #   HTTP/HTTPS URLs via httpx + markdownify
 │   ├── slack.py             #   Slack workspace export JSON
-│   └── github_issues.py     #   GitHub Issues JSON
+│   ├── github_issues.py     #   GitHub Issues JSON
+│   └── gitlab_issues.py     #   GitLab Issues JSON (iid-based detection)
 ├── analyze/                # Phase 2 — LLM orchestration (async)
 │   ├── analyzer.py          #   Orchestrator: extraction → dedup → risk → design
 │   ├── prompts.py           #   3 system prompts (extraction, risk, design)
@@ -339,6 +384,10 @@ src/intake/
 │   ├── spec_builder.py      #   Orchestrates 6 spec files + lock
 │   ├── adaptive.py          #   AdaptiveSpecBuilder — mode-aware file selection
 │   └── lock.py              #   spec.lock.yaml for reproducibility
+├── validate/              # Spec quality gate (offline)
+│   └── checker.py          #   5 check categories, DFS cycle detection, cross-refs
+├── estimate/              # LLM cost estimation
+│   └── estimator.py        #   7-model pricing, 3 modes, budget warnings
 ├── verify/                 # Phase 4 — Acceptance check engine
 │   ├── engine.py           #   4 check types: command, files_exist, pattern_*
 │   └── reporter.py         #   Terminal (Rich), JSON, JUnit XML reporters
@@ -357,7 +406,7 @@ src/intake/
 ├── mcp/                    # MCP server (Model Context Protocol)
 │   ├── __init__.py         #   MCPError + re-exports
 │   ├── server.py           #   Server creation + stdio/SSE transports
-│   ├── tools.py            #   7 tools: show, context, tasks, update, verify, feedback, list
+│   ├── tools.py            #   9 tools: show, context, tasks, update, verify, feedback, list, validate, estimate
 │   ├── resources.py        #   Dynamic spec file resources (intake://specs/{name}/{section})
 │   └── prompts.py          #   Prompt templates: implement_next_task, verify_and_fix
 ├── watch/                  # Watch mode (file monitoring + auto-verification)
@@ -372,7 +421,7 @@ src/intake/
 │   └── checks.py            #   Python, API keys, deps, connectors, config validation
 ├── llm/                    # LiteLLM wrapper (used by analyze/ only)
 │   └── adapter.py           #   Async completion, retry, cost tracking, budget
-├── templates/              # Jinja2 templates (15 total)
+├── templates/              # Jinja2 templates (17 total) + custom loader
 │   ├── requirements.md.j2   #   FR, NFR, conflicts, open questions
 │   ├── design.md.j2         #   Components, files, tech decisions
 │   ├── tasks.md.j2          #   Task summary + status + detailed sections
@@ -385,7 +434,10 @@ src/intake/
 │   ├── cursor_rules.mdc.j2  #   Cursor rules file
 │   ├── kiro_*.md.j2         #   Kiro requirements/design/tasks (3 files)
 │   ├── copilot_instructions.md.j2  # Copilot instructions
-│   └── feedback.md.j2      #   Feedback results template
+│   ├── feedback.md.j2      #   Feedback results template
+│   ├── gitlab_ci.yml.j2    #   GitLab CI pipeline template
+│   ├── github_actions.yml.j2  # GitHub Actions workflow template
+│   └── loader.py           #   ChoiceLoader: user templates → built-in
 └── utils/                  # Shared utilities
     ├── file_detect.py       #   Extension-based format detection
     ├── project_detect.py    #   Auto-detect tech stack from project files
@@ -496,6 +548,8 @@ intake mcp serve --transport sse --port 8080
 | `intake_verify` | Run acceptance checks |
 | `intake_feedback` | Analyze verification failures |
 | `intake_list_specs` | List available specs |
+| `intake_validate` | Validate spec internal consistency (offline) |
+| `intake_estimate` | Estimate LLM cost for a spec |
 
 **MCP resources:** Direct access to spec files via `intake://specs/{name}/{section}` URIs.
 
@@ -547,6 +601,13 @@ intake feedback ./specs/auth --agent-format claude-code
     report-output: intake-report.xml
 ```
 
+#### GitLab CI (generated)
+
+```bash
+# Generate a .gitlab-ci.yml from your spec
+intake export-ci ./specs/auth-system --platform gitlab -o .gitlab-ci.yml
+```
+
 #### Manual setup
 
 ```yaml
@@ -577,25 +638,28 @@ ruff format src/ tests/
 mypy src/ --strict
 ```
 
-Current test suite: **775 tests**, **0 mypy --strict errors**, **0 ruff warnings**.
+Current test suite: **882 tests**, **0 mypy --strict errors**, **0 ruff warnings**.
 
 ### Implementation Status
 
 | Phase | Module | Status |
 |-------|--------|--------|
-| Phase 1 — Ingest | `ingest/` (11 parsers + plugin-based registry) | Implemented |
+| Phase 1 — Ingest | `ingest/` (12 parsers + plugin-based registry) | Implemented |
 | Phase 2 — Analyze | `analyze/` (orchestrator + 7 sub-modules + complexity) | Implemented |
 | Phase 3 — Generate | `generate/` (spec builder + adaptive builder + 6 templates + lock) | Implemented |
 | Phase 4 — Verify | `verify/` (engine + 3 reporters) | Implemented |
 | Phase 5 — Export | `export/` (6 exporters: claude-code, cursor, kiro, copilot, architect, generic) | Implemented |
 | Plugins | `plugins/` (protocols + discovery + hooks) | Implemented |
-| Connectors | `connectors/` (Jira, Confluence, GitHub API connectors) | Implemented |
+| Connectors | `connectors/` (Jira, Confluence, GitHub, GitLab API connectors) | Implemented |
 | Feedback | `feedback/` (analyzer + suggestions + spec updater) | Implemented |
-| MCP Server | `mcp/` (server + 7 tools + resources + prompts) | Implemented |
+| MCP Server | `mcp/` (server + 9 tools + resources + prompts) | Implemented |
 | Watch Mode | `watch/` (SpecWatcher with watchfiles) | Implemented |
+| Validate | `validate/` (offline spec quality gate, 5 check categories) | Implemented |
+| Estimate | `estimate/` (LLM cost estimation, 7 models) | Implemented |
+| Templates | `templates/loader.py` (custom template overrides via ChoiceLoader) | Implemented |
 | Standalone | `doctor/`, `config/`, `llm/`, `utils/` | Implemented |
 | Standalone | `diff/` (spec differ) | Implemented |
-| CLI | 19 commands/subcommands wired end-to-end | Implemented |
+| CLI | 22 commands/subcommands wired end-to-end | Implemented |
 
 ---
 

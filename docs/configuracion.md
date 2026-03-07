@@ -95,6 +95,15 @@ connectors:
   github:
     token_env: GITHUB_TOKEN       # Variable de entorno con el PAT
     default_repo: ""              # Repo por defecto (ej: "org/repo")
+  gitlab:
+    url: "https://gitlab.example.com"  # URL de la instancia GitLab
+    token_env: GITLAB_TOKEN            # Variable de entorno con el access token
+    auth_type: token                    # token | oauth
+    default_project: ""                 # Proyecto por defecto
+    include_comments: true              # Incluir discussion notes
+    include_merge_requests: false       # Incluir MRs vinculados
+    max_notes: 10                       # Max notas por issue
+    ssl_verify: true                    # Verificar certificados SSL
 
 # Feedback loop
 feedback:
@@ -118,6 +127,28 @@ watch:
     - ".git"
     - "node_modules"
     - ".intake"
+
+# Validacion de specs
+validate:
+  strict: false                 # Modo estricto: warnings son errores
+  required_sections:            # Archivos requeridos
+    - requirements.md
+    - tasks.md
+    - acceptance.yaml
+
+# Estimacion de costos
+estimate:
+  tokens_per_word: 1.35         # Ratio tokens/palabra
+  prompt_overhead_tokens: 2000  # Overhead por llamada LLM
+  calls_per_mode:               # Llamadas LLM por modo
+    quick: 1
+    standard: 3
+    enterprise: 4
+
+# Templates personalizados
+templates:
+  user_dir: ".intake/templates"   # Directorio de templates del usuario
+  warn_on_override: true          # Warning al sobreescribir un template built-in
 
 # Seguridad
 security:
@@ -280,6 +311,19 @@ Configuracion para conectores API directos. Permiten usar URIs como `jira://PROJ
 | `github.token_env` | string | `"GITHUB_TOKEN"` | Variable de entorno con el Personal Access Token. |
 | `github.default_repo` | string | `""` | Repositorio por defecto (ej: `org/repo`). |
 
+**GitLab:**
+
+| Campo | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `gitlab.url` | string | `"https://gitlab.com"` | URL de la instancia GitLab. Requerido para usar `gitlab://`. |
+| `gitlab.token_env` | string | `"GITLAB_TOKEN"` | Variable de entorno con el Personal Access Token. |
+| `gitlab.auth_type` | string | `"token"` | Tipo de autenticacion: `token`, `oauth`. |
+| `gitlab.default_project` | string | `""` | Proyecto por defecto (ej: `group/project`). |
+| `gitlab.include_comments` | bool | `true` | Incluir discussion notes en los issues. |
+| `gitlab.include_merge_requests` | bool | `false` | Incluir merge requests vinculados a los issues. |
+| `gitlab.max_notes` | int | `10` | Maximo de notas por issue. |
+| `gitlab.ssl_verify` | bool | `true` | Verificar certificados SSL. Deshabilitar para instancias con certificados auto-firmados. |
+
 ### Seccion `feedback`
 
 Configuracion del feedback loop. Ver [Feedback](feedback.md) para detalles.
@@ -313,6 +357,35 @@ Configuracion del modo watch para re-verificacion automatica. Ver [Watch Mode](w
 | `watch.ignore_patterns` | list[string] | `["*.pyc", "__pycache__", ".git", "node_modules", ".intake"]` | Patrones glob de archivos/directorios a ignorar. Se comparan contra cada componente del path. |
 
 **Nota:** El modo watch requiere el paquete `watchfiles`. Instalar con: `pip install "intake-ai-cli[watch]"`.
+
+### Seccion `validate`
+
+Configuracion de la validacion interna de specs (quality gate). Ver [Guia CLI > validate](guia-cli.md#intake-validate) para detalles de uso.
+
+| Campo | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `validate.strict` | bool | `false` | Modo estricto: los warnings se convierten en errores. |
+| `validate.required_sections` | list[string] | `["requirements.md", "tasks.md", "acceptance.yaml"]` | Archivos requeridos en la spec. |
+| `validate.max_orphaned_requirements` | int | `0` | Maximo de requisitos huerfanos (sin tarea) permitidos sin advertencia. |
+
+### Seccion `estimate`
+
+Configuracion de la estimacion de costos LLM. Ver [Guia CLI > estimate](guia-cli.md#intake-estimate) para detalles de uso.
+
+| Campo | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `estimate.tokens_per_word` | float | `1.35` | Ratio de tokens por palabra para estimar tokens de entrada. |
+| `estimate.prompt_overhead_tokens` | int | `2000` | Tokens adicionales por llamada LLM (system prompt, formato, etc.). |
+| `estimate.calls_per_mode` | dict | `{"quick": 1, "standard": 3, "enterprise": 4}` | Numero de llamadas LLM por modo de generacion. |
+
+### Seccion `templates`
+
+Configuracion de templates Jinja2 con soporte de overrides por proyecto. Los usuarios pueden sobreescribir cualquier template built-in colocando un archivo con el mismo nombre en el directorio configurado.
+
+| Campo | Tipo | Default | Descripcion |
+|-------|------|---------|-------------|
+| `templates.user_dir` | string | `".intake/templates"` | Directorio relativo al proyecto donde buscar templates personalizados. |
+| `templates.warn_on_override` | bool | `true` | Log de warning cuando un template built-in es sobreescrito por uno del usuario. |
 
 ### Seccion `security`
 
@@ -387,6 +460,7 @@ llm:
 | `CONFLUENCE_API_TOKEN` | Confluence | API token de Atlassian |
 | `CONFLUENCE_EMAIL` | Confluence | Email de autenticacion |
 | `GITHUB_TOKEN` | GitHub | Personal Access Token |
+| `GITLAB_TOKEN` | GitLab | Personal Access Token (scope: `read_api`) |
 
 ```bash
 # Jira / Confluence
@@ -397,6 +471,9 @@ export CONFLUENCE_EMAIL=dev@company.com
 
 # GitHub
 export GITHUB_TOKEN=ghp_tu-personal-access-token
+
+# GitLab
+export GITLAB_TOKEN=glpat-tu-personal-access-token
 ```
 
 Los nombres de las variables son configurables via `connectors.*.token_env` y `connectors.*.email_env` en `.intake.yaml`.

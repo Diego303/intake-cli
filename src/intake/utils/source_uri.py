@@ -26,7 +26,7 @@ import structlog
 
 logger = structlog.get_logger()
 
-SourceType = Literal["file", "stdin", "url", "jira", "confluence", "github", "text"]
+SourceType = Literal["file", "stdin", "url", "jira", "confluence", "github", "gitlab", "text"]
 
 # File extensions that indicate the source is a local file path.
 _FILE_EXTENSIONS = {
@@ -69,6 +69,7 @@ SCHEME_PATTERNS: dict[str, re.Pattern[str]] = {
     "jira": re.compile(r"^jira://(.+)$"),
     "confluence": re.compile(r"^confluence://(.+)$"),
     "github": re.compile(r"^github://(.+)$"),
+    "gitlab": re.compile(r"^gitlab://(.+)$"),
 }
 
 

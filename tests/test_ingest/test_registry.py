@@ -167,6 +167,7 @@ class TestCreateDefaultRegistry:
             "confluence",
             "docx",
             "github_issues",
+            "gitlab_issues",
             "image",
             "jira",
             "markdown",
@@ -191,7 +192,7 @@ class TestCreateDefaultRegistry:
     def test_plugin_discovery_finds_parsers(self) -> None:
         """Plugin discovery via entry_points finds all built-in parsers."""
         registry = create_default_registry(use_plugins=True)
-        assert len(registry.registered_formats) >= 11
+        assert len(registry.registered_formats) >= 12
         assert "markdown" in registry.registered_formats
         assert "slack" in registry.registered_formats
         assert "github_issues" in registry.registered_formats
@@ -204,6 +205,7 @@ class TestCreateDefaultRegistry:
             "confluence",
             "docx",
             "github_issues",
+            "gitlab_issues",
             "image",
             "jira",
             "markdown",

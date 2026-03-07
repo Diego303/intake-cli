@@ -12,7 +12,7 @@ Guia para desplegar intake en entornos de equipo, contenedores y pipelines de CI
 pip install intake-ai-cli
 ```
 
-Con conectores API (Jira, Confluence, GitHub):
+Con conectores API (Jira, Confluence, GitHub, GitLab):
 
 ```bash
 pip install "intake-ai-cli[connectors]"
@@ -34,7 +34,7 @@ En un `requirements.txt` o `pyproject.toml` del proyecto:
 
 ```text
 # requirements-tools.txt
-intake-ai-cli==0.5.0
+intake-ai-cli==0.6.0
 ```
 
 ```bash
@@ -151,6 +151,7 @@ ANTHROPIC_API_KEY=sk-ant-api03-tu-key
 JIRA_API_TOKEN=tu-token
 JIRA_EMAIL=dev@company.com
 GITHUB_TOKEN=ghp_tu-token
+GITLAB_TOKEN=glpat-tu-token
 ```
 
 ```bash
@@ -159,6 +160,7 @@ ANTHROPIC_API_KEY=
 JIRA_API_TOKEN=
 JIRA_EMAIL=
 GITHUB_TOKEN=
+GITLAB_TOKEN=
 ```
 
 ### .dockerignore
@@ -286,6 +288,7 @@ Ver [Flujos de trabajo > Workflow con agentes IA](flujos-trabajo.md#workflow-con
 | Conector Jira | `JIRA_API_TOKEN` + `JIRA_EMAIL` |
 | Conector Confluence | `CONFLUENCE_API_TOKEN` + `CONFLUENCE_EMAIL` |
 | Conector GitHub | `GITHUB_TOKEN` |
+| Conector GitLab | `GITLAB_TOKEN` |
 
 **Nota:** Los nombres de las variables son configurables en `.intake.yaml`. Los valores por defecto se listan arriba.
 

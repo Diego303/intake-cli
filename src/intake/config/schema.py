@@ -117,12 +117,26 @@ class GithubConfig(BaseModel):
     default_repo: str = ""
 
 
+class GitlabConfig(BaseModel):
+    """GitLab API connector configuration."""
+
+    url: str = "https://gitlab.com"
+    token_env: str = "GITLAB_TOKEN"
+    auth_type: Literal["token", "oauth"] = "token"
+    default_project: str = ""
+    include_comments: bool = True
+    include_merge_requests: bool = False
+    max_notes: int = 10
+    ssl_verify: bool = True
+
+
 class ConnectorsConfig(BaseModel):
     """Configuration for external connectors."""
 
     jira: JiraConfig = Field(default_factory=JiraConfig)
     confluence: ConfluenceConfig = Field(default_factory=ConfluenceConfig)
     github: GithubConfig = Field(default_factory=GithubConfig)
+    gitlab: GitlabConfig = Field(default_factory=GitlabConfig)
 
 
 # ---------------------------------------------------------------------------
@@ -177,12 +191,69 @@ class WatchConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Validate configuration
+# ---------------------------------------------------------------------------
+
+
+class ValidateConfig(BaseModel):
+    """Spec validation (quality gate) configuration."""
+
+    strict: bool = False
+    required_sections: list[str] = Field(
+        default_factory=lambda: [
+            "requirements.md",
+            "tasks.md",
+            "acceptance.yaml",
+        ]
+    )
+    max_orphaned_requirements: int = 0
+
+
+# ---------------------------------------------------------------------------
+# Estimate configuration
+# ---------------------------------------------------------------------------
+
+
+class EstimateConfig(BaseModel):
+    """LLM cost estimation configuration."""
+
+    tokens_per_word: float = 1.35
+    prompt_overhead_tokens: int = 2000
+    calls_per_mode: dict[str, int] = Field(
+        default_factory=lambda: {
+            "quick": 1,
+            "standard": 3,
+            "enterprise": 4,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Templates configuration
+# ---------------------------------------------------------------------------
+
+
+class TemplatesConfig(BaseModel):
+    """Custom template override configuration."""
+
+    user_dir: str = ".intake/templates"
+    warn_on_override: bool = True
+
+
+# ---------------------------------------------------------------------------
+# Root configuration
+# ---------------------------------------------------------------------------
+
+
 class IntakeConfig(BaseModel):
     """Root intake configuration.
 
     Aggregates all sub-configurations. Built via layered merge:
     defaults -> preset -> .intake.yaml -> CLI flags.
     """
+
+    model_config = {"populate_by_name": True}
 
     llm: LLMConfig = Field(default_factory=LLMConfig)
     project: ProjectConfig = Field(default_factory=ProjectConfig)
@@ -194,3 +265,6 @@ class IntakeConfig(BaseModel):
     feedback: FeedbackConfig = Field(default_factory=FeedbackConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     watch: WatchConfig = Field(default_factory=WatchConfig)
+    validate_spec: ValidateConfig = Field(default_factory=ValidateConfig, alias="validate")
+    estimate: EstimateConfig = Field(default_factory=EstimateConfig)
+    templates: TemplatesConfig = Field(default_factory=TemplatesConfig)

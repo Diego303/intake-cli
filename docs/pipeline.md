@@ -17,7 +17,7 @@ Fuentes             Fase 1        Fase 2        Fase 3         Fase 4          F
 
 ## Fase 1: Ingest
 
-**Modulo:** `ingest/` (11 parsers)
+**Modulo:** `ingest/` (12 parsers)
 **Requiere LLM:** No (excepto `ImageParser`)
 
 ### Que hace
@@ -33,13 +33,13 @@ Fuente --> parse_source() --> Registry --> Detecta formato --> Selecciona parser
 1. **Resolucion de fuente**: `parse_source()` determina el tipo de fuente:
    - Archivos locales → pasan al registry
    - URLs HTTP/HTTPS → se procesan con `UrlParser`
-   - URIs de esquema (`jira://`, `confluence://`, `github://`) → se resuelven via conectores API (descargan a archivos temporales)
+   - URIs de esquema (`jira://`, `confluence://`, `github://`, `gitlab://`) → se resuelven via conectores API (descargan a archivos temporales)
    - Stdin (`-`) → se lee como plaintext
    - Texto libre → se trata como plaintext
 2. El **Registry** recibe la ruta del archivo
 3. **Auto-detecta el formato** por extension y contenido:
    - Extension directa: `.md` -> markdown, `.pdf` -> pdf, `.docx` -> docx
-   - Subtipos JSON: Jira > GitHub Issues > Slack > YAML generico
+   - Subtipos JSON: Jira > GitLab Issues > GitHub Issues > Slack > YAML generico
    - Subtipos HTML: si contiene "confluence" o "atlassian" -> confluence
    - Fallback: plaintext
 4. **Selecciona el parser** registrado para ese formato (via plugin discovery o registro manual)
@@ -308,7 +308,7 @@ Ver [Exportacion](exportacion.md) para detalles completos.
                    (parse_source → file, url, stdin, text)
                            |
                       [ INGEST ]
-                      (11 parsers via plugin discovery)
+                      (12 parsers via plugin discovery)
                            |
                    list[ParsedContent]
                            |
@@ -370,7 +370,7 @@ Expone las specs como un servidor MCP (Model Context Protocol) para que cualquie
 
 | Tipo | Cantidad | Descripcion |
 |------|----------|-------------|
-| Tools | 7 | Operaciones sobre specs (show, verify, feedback, tasks, etc.) |
+| Tools | 9 | Operaciones sobre specs (show, verify, validate, estimate, feedback, tasks, etc.) |
 | Resources | 6 | Acceso directo a archivos spec via URIs `intake://specs/{name}/{section}` |
 | Prompts | 2 | Templates estructurados para agentes (implement_next_task, verify_and_fix) |
 

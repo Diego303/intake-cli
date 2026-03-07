@@ -11,7 +11,9 @@ Guia completa para integrar intake en pipelines de integracion continua. Incluye
 | Accion | Cuando | Comando |
 |--------|--------|---------|
 | Verificar spec | En cada PR / push | `intake verify specs/<spec>/ -p . -f junit` |
+| Validar spec | En cada PR / push | `intake validate specs/<spec>/` |
 | Exportar spec | Al mergear a main | `intake export specs/<spec>/ -f <formato> -o .` |
+| Generar CI config | Una vez / setup | `intake export-ci specs/<spec>/ -p github` o `-p gitlab` |
 | Detectar drift | Programado (semanal) | Comparar hashes de `spec.lock.yaml` con fuentes |
 | Doctor check | Programado / manual | `intake doctor` |
 | Feedback | Cuando verify falla | `intake feedback specs/<spec>/ -p .` |
@@ -556,6 +558,29 @@ Ver los ejemplos de GitHub Actions y GitLab CI arriba para implementaciones en C
         "text": "La spec mi-feature no paso los checks de aceptacion en la branch ${{ github.ref_name }}"
       }'
 ```
+
+---
+
+## Generacion automatica de CI config
+
+intake puede generar automaticamente archivos de configuracion CI para verificacion de specs. Esto simplifica el setup inicial:
+
+```bash
+# Generar GitLab CI config
+intake export-ci specs/mi-feature/ -p gitlab
+# Genera: .gitlab-ci.yml
+
+# Generar GitHub Actions workflow
+intake export-ci specs/mi-feature/ -p github
+# Genera: .github/workflows/intake-verify.yml
+
+# Generar en directorio personalizado
+intake export-ci specs/mi-feature/ -p github -o ci-config/
+```
+
+Los archivos generados incluyen instalacion de intake, ejecucion de `intake verify`, y reporte JUnit. Se pueden personalizar despues de generarlos.
+
+**Nota:** `export-ci` usa templates Jinja2 built-in (`gitlab_ci.yml.j2`, `github_actions.yml.j2`). Si necesitas customizarlos, puedes sobreescribirlos con [templates de usuario](configuracion.md#seccion-templates).
 
 ---
 

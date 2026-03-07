@@ -1,6 +1,6 @@
 # Guia CLI
 
-intake proporciona 19 comandos y subcomandos. Todos siguen el patron:
+intake proporciona 22 comandos y subcomandos. Todos siguen el patron:
 
 ```bash
 intake <comando> [argumentos] [opciones]
@@ -83,6 +83,7 @@ intake init "Bug fixes" -s issues.json
 intake init "Sprint tasks" -s jira://PROJ-123
 intake init "Spec review" -s confluence://SPACE/Page-Title
 intake init "Bug triage" -s github://org/repo/issues?labels=bug&state=open
+intake init "Sprint review" -s gitlab://team/backend/issues?labels=sprint
 
 # Dry run para ver que haria
 intake init "Prototipo" -s ideas.txt --dry-run
@@ -99,7 +100,7 @@ cat requisitos.txt | intake init "Feature X" -s -
 4. **Resolucion de fuentes**: cada fuente se resuelve via `parse_source()`:
    - Archivos locales → se parsean con el registry
    - URLs (`http://`, `https://`) → se procesan con `UrlParser`
-   - URIs de esquema (`jira://`, `confluence://`, `github://`) → se resuelven via conectores API (ver [Conectores](conectores.md))
+   - URIs de esquema (`jira://`, `confluence://`, `github://`, `gitlab://`) → se resuelven via conectores API (ver [Conectores](conectores.md))
    - Stdin (`-`) → se lee como texto plano
    - Texto libre → se trata como plaintext
 5. **Clasificacion de complejidad**: si no se especifica `--mode`, se auto-clasifica:
@@ -606,7 +607,7 @@ intake mcp serve [opciones]
 
 ### Que expone
 
-**7 Tools:**
+**9 Tools:**
 
 | Tool | Descripcion |
 |------|-------------|
@@ -617,6 +618,8 @@ intake mcp serve [opciones]
 | `intake_verify` | Ejecuta checks de aceptacion con filtro por tags |
 | `intake_feedback` | Verifica + genera feedback sobre fallos |
 | `intake_list_specs` | Lista specs disponibles |
+| `intake_validate` | Valida consistencia interna de la spec (cross-references, DAG, checks) |
+| `intake_estimate` | Estima costo LLM para generar o regenerar una spec |
 
 **6 Resources** via URIs `intake://specs/{name}/{section}`:
 - `requirements`, `tasks`, `context`, `acceptance`, `design`, `sources`
@@ -710,6 +713,167 @@ Requiere el paquete `watchfiles`: `pip install intake-ai-cli[watch]`
 
 ---
 
+## intake validate
+
+Valida la consistencia interna de una spec (quality gate). Comprueba cross-references, dependencias de tareas, validez de checks de aceptacion y completeness. Funciona offline — no requiere LLM.
+
+```bash
+intake validate <SPEC_DIR> [opciones]
+```
+
+### Argumento
+
+| Argumento | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `SPEC_DIR` | path | Si | Directorio de la spec a validar. |
+
+### Opciones
+
+| Flag | Corto | Tipo | Default | Descripcion |
+|------|-------|------|---------|-------------|
+| `--strict` | | flag | false | Modo estricto: los warnings se convierten en errores. |
+| `--format` | `-f` | opcion | `terminal` | Formato del reporte: `terminal`, `json`. |
+
+### Categorias de checks
+
+| Categoria | Que verifica |
+|-----------|-------------|
+| `structure` | Archivos requeridos existen y no estan vacios; YAML es valido |
+| `cross_reference` | Tareas referencian requisitos validos; requisitos no estan huerfanos |
+| `consistency` | DAG de tareas sin ciclos; IDs de tareas son secuenciales |
+| `acceptance` | Checks tienen tipo valido, comandos no vacios, patrones regex validos, paths definidos |
+| `completeness` | Cada requisito funcional tiene al menos una tarea implementadora |
+
+### Exit codes
+
+| Codigo | Significado |
+|--------|-------------|
+| `0` | Spec es valida (sin errores) |
+| `1` | Spec tiene errores |
+| `2` | Error de ejecucion |
+
+### Ejemplos
+
+```bash
+# Validar spec (reporte en terminal)
+intake validate specs/api-de-usuarios/
+
+# Modo estricto: warnings se convierten en errores
+intake validate specs/api-de-usuarios/ --strict
+
+# Formato JSON (para CI o procesamiento automatizado)
+intake validate specs/api-de-usuarios/ --format json
+
+# Usar antes de entregar a un agente
+intake validate specs/mi-feature/ && intake export specs/mi-feature/ -f claude-code -o .
+```
+
+---
+
+## intake estimate
+
+Estima el costo LLM antes de generar una spec. Analiza las fuentes de entrada y calcula el uso de tokens y costo en dolares sin hacer ninguna llamada LLM.
+
+```bash
+intake estimate -s <fuente> [opciones]
+```
+
+### Opciones
+
+| Flag | Corto | Tipo | Default | Descripcion |
+|------|-------|------|---------|-------------|
+| `--source` | `-s` | texto | — | Fuentes a estimar (repetible). Requerido. |
+| `--model` | `-m` | texto | config | Modelo LLM para calcular precio. |
+| `--mode` | | opcion | auto | Modo: `quick`, `standard`, `enterprise`. Auto-detectado si se omite. |
+| `--format` | `-f` | opcion | `terminal` | Formato del reporte: `terminal`, `json`. |
+
+### Que muestra
+
+- Modelo LLM usado
+- Modo de generacion (con indicador de auto-deteccion)
+- Palabras de entrada estimadas
+- Tokens de entrada y salida estimados
+- Numero de llamadas LLM
+- Costo estimado con margen de ~30%
+- Warnings: modelo no en tabla de precios, presupuesto excedido
+
+### Modelos con precios integrados
+
+| Modelo | Input ($/1M tokens) | Output ($/1M tokens) |
+|--------|---------------------|----------------------|
+| `claude-sonnet-4` | $3.00 | $15.00 |
+| `claude-opus-4` | $15.00 | $75.00 |
+| `claude-haiku-4` | $0.80 | $4.00 |
+| `gpt-4o` | $2.50 | $10.00 |
+| `gpt-4o-mini` | $0.15 | $0.60 |
+| `gemini-2.0-flash` | $0.10 | $0.40 |
+| `deepseek-chat` | $0.14 | $0.28 |
+
+Para modelos no listados se usa un pricing por defecto ($3/$15 per 1M tokens) con un warning.
+
+### Ejemplos
+
+```bash
+# Estimar costo de un archivo
+intake estimate -s requirements.md
+
+# Multiples fuentes con modelo especifico
+intake estimate -s reqs.md -s notes.md --model gpt-4o-mini
+
+# Forzar modo enterprise
+intake estimate -s big-spec.pdf --mode enterprise
+
+# Formato JSON
+intake estimate -s reqs.md --format json
+```
+
+---
+
+## intake export-ci
+
+Genera configuracion de CI para verificacion automatica de specs.
+
+```bash
+intake export-ci <SPEC_DIR> -p <plataforma> [opciones]
+```
+
+### Argumento
+
+| Argumento | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `SPEC_DIR` | path | Si | Directorio de la spec. |
+
+### Opciones
+
+| Flag | Corto | Tipo | Default | Descripcion |
+|------|-------|------|---------|-------------|
+| `--platform` | `-p` | opcion | — | Plataforma CI: `github`, `gitlab`. Requerido. |
+| `--output` | `-o` | path | `.` | Directorio de salida. |
+
+### Que genera
+
+| Plataforma | Archivo generado | Descripcion |
+|-----------|-----------------|-------------|
+| `github` | `.github/workflows/intake-verify.yml` | GitHub Actions workflow |
+| `gitlab` | `.gitlab-ci.yml` | GitLab CI pipeline |
+
+Los archivos generados son templates Jinja2 renderizados con el path de la spec. Incluyen instalacion de intake, ejecucion de `intake verify`, y reporte JUnit.
+
+### Ejemplos
+
+```bash
+# Generar GitLab CI config
+intake export-ci specs/auth/ -p gitlab
+
+# Generar GitHub Actions workflow en directorio personalizado
+intake export-ci specs/auth/ -p github -o .github/workflows/
+
+# Generar y commitear
+intake export-ci specs/mi-feature/ -p gitlab && git add .gitlab-ci.yml
+```
+
+---
+
 ## Opciones globales
 
 | Flag | Descripcion |
@@ -718,7 +882,7 @@ Requiere el paquete `watchfiles`: `pip install intake-ai-cli[watch]`
 | `--help` | Muestra la ayuda del comando |
 
 ```bash
-intake --version    # intake, version 0.5.0
+intake --version    # intake, version 0.6.0
 intake --help       # Ayuda general
 intake init --help  # Ayuda del comando init
 ```

@@ -1,0 +1,64 @@
+[
+  {
+    "iid": 42,
+    "id": 100,
+    "title": "SSO login fails with SAML provider",
+    "description": "When users attempt to log in via SAML SSO, the OAuth callback handler throws a 500 error.\n\n## Steps to Reproduce\n1. Navigate to /login\n2. Click 'Sign in with SSO'\n3. Complete SAML authentication\n4. Observe 500 error on callback\n\n## Expected\nUser should be redirected to dashboard after successful SAML auth.\n\n## Actual\n500 Internal Server Error on `/auth/saml/callback`.",
+    "state": "opened",
+    "labels": ["bug", "priority::high", "SSO"],
+    "milestone": {"title": "v2.0"},
+    "assignees": [{"username": "jdoe"}, {"username": "asmith"}],
+    "author": {"username": "admin"},
+    "weight": 5,
+    "due_date": "2025-03-15",
+    "created_at": "2025-01-10T09:00:00Z",
+    "updated_at": "2025-01-12T14:30:00Z",
+    "web_url": "https://gitlab.com/mygroup/myproject/-/issues/42",
+    "confidential": false,
+    "task_completion_status": {"count": 3, "completed_count": 1},
+    "_project_path": "mygroup/myproject",
+    "notes": [
+      {
+        "author": {"username": "jdoe"},
+        "body": "I can reproduce this consistently. The issue is in the OAuth callback handler — it doesn't handle the SAML assertion correctly when the IdP returns multiple group memberships.",
+        "created_at": "2025-01-10T10:00:00Z",
+        "system": false
+      },
+      {
+        "author": {"username": "asmith"},
+        "body": "Confirmed. The `parse_saml_response` function needs to handle the `memberOf` attribute as an array, not a string.",
+        "created_at": "2025-01-11T11:00:00Z",
+        "system": false
+      }
+    ],
+    "merge_requests": [
+      {
+        "iid": 101,
+        "title": "Fix SAML callback handler for multi-group responses",
+        "state": "merged",
+        "web_url": "https://gitlab.com/mygroup/myproject/-/merge_requests/101"
+      }
+    ]
+  },
+  {
+    "iid": 43,
+    "id": 101,
+    "title": "Add rate limiting to API endpoints",
+    "description": "Implement rate limiting on all public API endpoints to prevent abuse.\n\n## Requirements\n- 100 requests/minute for authenticated users\n- 20 requests/minute for unauthenticated users\n- Return 429 with Retry-After header when limit exceeded\n- Use Redis for distributed rate counting",
+    "state": "opened",
+    "labels": ["feature", "security", "priority::medium"],
+    "milestone": {"title": "v2.0"},
+    "assignees": [{"username": "jdoe"}],
+    "author": {"username": "pm_lead"},
+    "weight": 8,
+    "due_date": "2025-03-30",
+    "created_at": "2025-01-15T08:00:00Z",
+    "updated_at": "2025-01-15T08:00:00Z",
+    "web_url": "https://gitlab.com/mygroup/myproject/-/issues/43",
+    "confidential": false,
+    "task_completion_status": {"count": 0, "completed_count": 0},
+    "_project_path": "mygroup/myproject",
+    "notes": [],
+    "merge_requests": []
+  }
+]
