@@ -549,8 +549,22 @@ def feedback(
 
         if verify_report:
             # Load existing report
-            with open(verify_report, encoding="utf-8") as f:
-                report_data = json.load(f)
+            report_path = Path(verify_report)
+            if not report_path.exists():
+                console.print(
+                    f"[red]Error:[/red] Report file not found: {verify_report}\n"
+                    "  Hint: Run 'intake verify --format json -o report.json' first."
+                )
+                sys.exit(2)
+            try:
+                with open(report_path, encoding="utf-8") as f:
+                    report_data = json.load(f)
+            except json.JSONDecodeError as e:
+                console.print(
+                    f"[red]Error:[/red] Invalid JSON in report file: {e}\n"
+                    "  Hint: Ensure the file was generated with 'intake verify --format json'."
+                )
+                sys.exit(2)
             console.print(f"[bold]Loaded report:[/bold] {verify_report}")
         else:
             # Run verify to get a report
@@ -1335,6 +1349,18 @@ def _fetch_connector_source(
         return asyncio.run(connector.fetch(uri))
     except ConnectorError as e:
         console.print(f"  [red]Connector error:[/red] {e}")
+        return []
+    except TimeoutError:
+        console.print(
+            f"  [red]Error:[/red] Connection timed out fetching {uri}\n"
+            f"  Hint: Check network connectivity and connector credentials."
+        )
+        return []
+    except OSError as e:
+        console.print(
+            f"  [red]Error:[/red] Network error fetching {uri}: {e}\n"
+            f"  Hint: Check your internet connection and firewall settings."
+        )
         return []
 
 

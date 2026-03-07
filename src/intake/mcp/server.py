@@ -8,6 +8,8 @@ Requires: pip install intake-ai-cli[mcp]
 
 from __future__ import annotations
 
+from typing import Any
+
 import structlog
 
 logger = structlog.get_logger()
@@ -18,7 +20,7 @@ MCP_SERVER_NAME = "intake-spec"
 def create_server(
     specs_dir: str = "./specs",
     project_dir: str = ".",
-) -> object:
+) -> Any:
     """Create and configure the MCP server.
 
     Requires: pip install intake-ai-cli[mcp]
@@ -132,19 +134,19 @@ async def run_sse(
     server = create_server(specs_dir, project_dir)
     sse = SseServerTransport("/messages")
 
-    async def handle_sse(request: object) -> object:
-        async with sse.connect_sse(request) as streams:  # type: ignore[arg-type]
+    async def handle_sse(request: Any) -> Any:
+        async with sse.connect_sse(request) as streams:
             await server.run(
                 streams[0],
                 streams[1],
                 server.create_initialization_options(),
             )
-        return None  # type: ignore[return-value]
+        return None
 
     app = Starlette(
         routes=[
-            Route("/sse", endpoint=handle_sse),  # type: ignore[arg-type]
-            Route("/messages", endpoint=sse.handle_post_message),  # type: ignore[arg-type]
+            Route("/sse", endpoint=handle_sse),
+            Route("/messages", endpoint=sse.handle_post_message),
         ],
     )
 

@@ -28,7 +28,75 @@ Guia completa para integrar intake en pipelines de integracion continua. Incluye
 
 ## GitHub Actions
 
-### Verificacion en PR
+### Action oficial de intake (recomendado)
+
+intake incluye una **GitHub Action oficial** (`action/action.yml`) que simplifica la integracion. La action instala intake, ejecuta verificacion, genera reportes y sube artefactos automaticamente.
+
+```yaml
+name: Verify Spec
+on: [push, pull_request]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify spec compliance
+        uses: Diego303/intake-cli/action@main
+        with:
+          spec-dir: specs/mi-feature/
+```
+
+#### Inputs
+
+| Input | Default | Descripcion |
+|-------|---------|-------------|
+| `spec-dir` | *(requerido)* | Path al directorio de la spec |
+| `project-dir` | `.` | Directorio del proyecto contra el cual verificar |
+| `report-format` | `junit` | Formato del reporte: `terminal`, `json`, `junit` |
+| `report-output` | `intake-verify-report.xml` | Path del archivo de reporte |
+| `tags` | `""` | Tags para filtrar checks (separados por coma) |
+| `fail-fast` | `false` | Detener en el primer fallo |
+| `python-version` | `3.12` | Version de Python |
+| `intake-version` | `latest` | Version de intake (ej: `>=0.4.0`) |
+
+#### Outputs
+
+| Output | Descripcion |
+|--------|-------------|
+| `result` | Resultado: `pass`, `fail`, o `error` |
+| `total-checks` | Total de checks ejecutados |
+| `passed-checks` | Checks que pasaron |
+| `failed-checks` | Checks que fallaron |
+| `report-path` | Path al reporte generado |
+
+#### Ejemplo avanzado con outputs
+
+```yaml
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify spec compliance
+        id: verify
+        uses: Diego303/intake-cli/action@main
+        with:
+          spec-dir: specs/mi-feature/
+          tags: "api,security"
+          fail-fast: "true"
+
+      - name: Comment on PR
+        if: failure()
+        run: |
+          echo "Spec verification failed: ${{ steps.verify.outputs.failed-checks }} checks failed"
+```
+
+### Verificacion manual en PR
+
+Si prefieres configurar los steps manualmente sin la action oficial:
 
 ```yaml
 name: Verify Spec Compliance

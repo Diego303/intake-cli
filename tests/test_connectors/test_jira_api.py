@@ -233,6 +233,25 @@ class TestJiraFetch:
             await connector.fetch("jira://PROJ-999")
 
 
+class TestJiraTempFileError:
+    @pytest.mark.asyncio
+    async def test_fetch_raises_connector_error_on_temp_file_failure(
+        self,
+        connector: JiraConnector,
+        mock_jira_client: MagicMock,
+    ) -> None:
+        connector._client = mock_jira_client
+
+        with (
+            patch(
+                "intake.connectors.jira_api.tempfile.NamedTemporaryFile",
+                side_effect=OSError("disk full"),
+            ),
+            pytest.raises(ConnectorError, match="Could not write temp file"),
+        ):
+            await connector.fetch("jira://PROJ-123")
+
+
 class TestJiraEnsureClient:
     def test_import_error_gives_helpful_message(
         self,

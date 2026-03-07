@@ -31,7 +31,7 @@ def register_prompts(server: object, specs_dir: str) -> None:
             "MCP prompts require the mcp package. Install with: pip install intake-ai-cli[mcp]"
         ) from None
 
-    @server.list_prompts()  # type: ignore[union-attr]
+    @server.list_prompts()  # type: ignore[attr-defined, untyped-decorator]
     async def list_prompts() -> list[Prompt]:
         return [
             Prompt(
@@ -63,7 +63,7 @@ def register_prompts(server: object, specs_dir: str) -> None:
             ),
         ]
 
-    @server.get_prompt()  # type: ignore[union-attr]
+    @server.get_prompt()  # type: ignore[attr-defined, untyped-decorator]
     async def get_prompt(
         name: str,
         arguments: dict[str, str] | None = None,

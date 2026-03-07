@@ -188,6 +188,25 @@ class TestGithubFetch:
             await connector.fetch("github://org/nonexistent/issues/1")
 
 
+class TestGithubTempFileError:
+    @pytest.mark.asyncio
+    async def test_fetch_raises_connector_error_on_temp_file_failure(
+        self,
+        connector: GithubConnector,
+        mock_github_client: MagicMock,
+    ) -> None:
+        connector._client = mock_github_client
+
+        with (
+            patch(
+                "intake.connectors.github_api.tempfile.NamedTemporaryFile",
+                side_effect=OSError("disk full"),
+            ),
+            pytest.raises(ConnectorError, match="Could not write temp file"),
+        ):
+            await connector.fetch("github://org/repo/issues/42")
+
+
 class TestGithubIssueToDict:
     def test_serialization(self, connector: GithubConnector) -> None:
         mock_issue = _make_mock_issue(

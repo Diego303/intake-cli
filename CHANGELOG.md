@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-03-07
+
+### Added
+
+#### GitHub Actions action
+
+- **`action/action.yml`** (NEW): Composite GitHub Action for verifying spec compliance in CI/CD. Inputs: `spec-dir`, `project-dir`, `report-format` (terminal/json/junit), `report-output`, `tags`, `fail-fast`, `python-version`, `intake-version`. Outputs: `result`, `total-checks`, `passed-checks`, `failed-checks`, `report-path`. Automatically uploads report as artifact.
+
+#### CI pipeline
+
+- **`.github/workflows/ci.yml`** (NEW): Full CI pipeline with 4 jobs: lint (ruff check + format), typecheck (mypy strict), test (Python 3.12 + 3.13 with coverage), build (package + verify install). Runs on push to main/develop and PRs to main. Concurrency groups cancel in-progress runs.
+
+#### Examples
+
+- **`examples/from-jira-api/`** (NEW): Live Jira API connector walkthrough with URI format reference and troubleshooting.
+- **`examples/mcp-session/`** (NEW): MCP server setup guide for Claude Code, Cursor, and SSE transport. Tool/resource/prompt reference. Complete implementation walkthrough.
+- **`examples/feedback-loop/`** (NEW): Verify-feedback-fix cycle documentation with failure types, auto-apply amendments, and watch mode integration.
+- **`examples/quick-mode/`** (NEW): Quick mode usage for simple tasks with auto-detection rules and output comparison.
+- **`examples/plugin-custom-parser/`** (NEW): Complete plugin development guide covering parser, exporter, and connector creation with V1 vs V2 protocol reference.
+
+#### Documentation
+
+- **README.md** updated with MCP setup guides (Claude Code `.mcp.json`, Cursor settings, SSE), GitHub Action usage, plugin development section, 9 examples table.
+- **`.intake.yaml.example`** updated with ALL configuration fields: connectors (jira/confluence/github), feedback, mcp, watch sections with full documentation.
+
+#### Test suite
+
+- **775 tests** (up from 772), **0 failures**, **10 skipped** (MCP prompts tests when mcp package not installed). 3 new tests for connector temp file error handling.
+
+### Fixed
+
+#### mypy strict compliance
+
+- **0 mypy --strict errors** (down from 39): Added `[[tool.mypy.overrides]]` for optional dependencies without type stubs (mcp, atlassian, github, uvicorn, starlette, watchfiles). Fixed `type: ignore` comments in MCP modules (tools, resources, prompts, server) to use correct error codes (`attr-defined`, `untyped-decorator`). Changed `create_server()` return type from `object` to `Any`. Removed stale `type: ignore[arg-type]` comments on Starlette Route calls.
+
+#### Error handling hardening
+
+- **Feedback command** (`cli.py`): Added specific `FileNotFoundError` check for verify report file with actionable hint. Added `json.JSONDecodeError` handling with suggestion to regenerate report.
+- **Connector fetch** (`cli.py`): Added `TimeoutError` and `OSError` handling in `_fetch_connector_source` for graceful degradation on network failures with actionable hints.
+- **Connector temp files** (`connectors/`): All 3 connectors (Jira, Confluence, GitHub) now wrap temp file creation in `try/except OSError` and raise `ConnectorError` with disk space suggestion.
+- **Verify engine** (`verify/engine.py`): Added `logger.warning` for `OSError` when reading files during pattern checks instead of silently continuing.
+
 ## [0.4.0] - 2026-03-05
 
 ### Added

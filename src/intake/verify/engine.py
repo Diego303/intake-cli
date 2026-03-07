@@ -346,7 +346,8 @@ class VerificationEngine:
                 continue
             try:
                 content = file.read_text(errors="ignore")
-            except OSError:
+            except OSError as e:
+                logger.warning("file_read_skipped", file=str(file), error=str(e))
                 continue
 
             for pattern in patterns:

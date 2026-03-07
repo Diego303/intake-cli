@@ -278,7 +278,31 @@ intake verify specs/my-spec/ -p . -f junit > test-results.xml
 
 ## Integracion con CI/CD
 
-### GitHub Actions
+### GitHub Actions (action oficial)
+
+La forma mas simple de integrar verificacion en CI. La action oficial instala intake, ejecuta verify y sube el reporte como artefacto:
+
+```yaml
+name: Verify Spec Compliance
+on: [push, pull_request]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Diego303/intake-cli/action@main
+        with:
+          spec-dir: specs/my-feature/
+          report-format: junit
+```
+
+Ver [Integracion CI/CD](integracion-cicd.md#action-oficial-de-intake-recomendado) para la referencia completa de inputs y outputs.
+
+### GitHub Actions (manual)
+
+Si prefieres configurar los pasos manualmente:
 
 ```yaml
 name: Verify Spec Compliance

@@ -47,7 +47,7 @@ def register_resources(server: object, specs_dir: str) -> None:
             "MCP resources require the mcp package. Install with: pip install intake-ai-cli[mcp]"
         ) from None
 
-    @server.list_resources()  # type: ignore[union-attr]
+    @server.list_resources()  # type: ignore[attr-defined, untyped-decorator]
     async def list_resources() -> list[Resource]:
         resources: list[Resource] = []
         path = Path(specs_dir)
@@ -71,7 +71,7 @@ def register_resources(server: object, specs_dir: str) -> None:
 
         return resources
 
-    @server.read_resource()  # type: ignore[union-attr]
+    @server.read_resource()  # type: ignore[attr-defined, untyped-decorator]
     async def read_resource(uri: str) -> str:
         """Read a spec file by its MCP resource URI.
 

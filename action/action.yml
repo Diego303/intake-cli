@@ -1,0 +1,123 @@
+name: "intake Spec Verify"
+description: "Verify that your implementation meets the intake spec. Runs acceptance checks and reports results."
+author: "intake contributors"
+
+branding:
+  icon: "check-circle"
+  color: "green"
+
+inputs:
+  spec-dir:
+    description: "Path to the spec directory (e.g., ./specs/auth-oauth2)"
+    required: true
+  project-dir:
+    description: "Path to the project directory to verify against"
+    required: false
+    default: "."
+  report-format:
+    description: "Report format: terminal, json, or junit"
+    required: false
+    default: "junit"
+  report-output:
+    description: "Path to write the report file"
+    required: false
+    default: "intake-verify-report.xml"
+  tags:
+    description: "Comma-separated list of tags to filter checks (e.g., test,lint)"
+    required: false
+    default: ""
+  fail-fast:
+    description: "Stop at the first failing check"
+    required: false
+    default: "false"
+  python-version:
+    description: "Python version to use"
+    required: false
+    default: "3.12"
+  intake-version:
+    description: "intake version to install (e.g., '>=0.4.0' or 'latest')"
+    required: false
+    default: "latest"
+
+outputs:
+  result:
+    description: "Verification result: 'pass' or 'fail'"
+  total-checks:
+    description: "Total number of checks executed"
+  passed-checks:
+    description: "Number of checks that passed"
+  failed-checks:
+    description: "Number of checks that failed"
+  report-path:
+    description: "Path to the generated report file"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install intake
+      shell: bash
+      run: |
+        if [ "${{ inputs.intake-version }}" = "latest" ]; then
+          pip install intake-ai-cli
+        else
+          pip install "intake-ai-cli${{ inputs.intake-version }}"
+        fi
+
+    - name: Run intake verify
+      id: verify
+      shell: bash
+      run: |
+        ARGS="$SPEC_DIR -p $PROJECT_DIR --format $FORMAT"
+
+        if [ -n "$REPORT_OUTPUT" ]; then
+          ARGS="$ARGS -o $REPORT_OUTPUT"
+        fi
+
+        if [ -n "$TAGS" ]; then
+          IFS=',' read -ra TAG_ARRAY <<< "$TAGS"
+          for tag in "${TAG_ARRAY[@]}"; do
+            ARGS="$ARGS -t $tag"
+          done
+        fi
+
+        if [ "$FAIL_FAST" = "true" ]; then
+          ARGS="$ARGS --fail-fast"
+        fi
+
+        echo "Running: intake verify $ARGS"
+
+        set +e
+        intake verify $ARGS
+        EXIT_CODE=$?
+        set -e
+
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+        elif [ $EXIT_CODE -eq 1 ]; then
+          echo "result=fail" >> "$GITHUB_OUTPUT"
+        else
+          echo "result=error" >> "$GITHUB_OUTPUT"
+        fi
+
+        echo "report-path=$REPORT_OUTPUT" >> "$GITHUB_OUTPUT"
+        exit $EXIT_CODE
+      env:
+        SPEC_DIR: ${{ inputs.spec-dir }}
+        PROJECT_DIR: ${{ inputs.project-dir }}
+        FORMAT: ${{ inputs.report-format }}
+        REPORT_OUTPUT: ${{ inputs.report-output }}
+        TAGS: ${{ inputs.tags }}
+        FAIL_FAST: ${{ inputs.fail-fast }}
+
+    - name: Upload report artifact
+      if: always() && inputs.report-output != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: intake-verify-report
+        path: ${{ inputs.report-output }}
+        if-no-files-found: ignore

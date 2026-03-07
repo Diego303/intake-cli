@@ -179,3 +179,20 @@ class TestConfluenceFetch:
 
         with pytest.raises(ConnectorError, match="Confluence API call failed"):
             await connector.fetch("confluence://page/999")
+
+    @pytest.mark.asyncio
+    async def test_fetch_raises_connector_error_on_temp_file_failure(
+        self,
+        connector: ConfluenceConnector,
+        mock_confluence_client: MagicMock,
+    ) -> None:
+        connector._client = mock_confluence_client
+
+        with (
+            patch(
+                "intake.connectors.confluence_api.tempfile.NamedTemporaryFile",
+                side_effect=OSError("disk full"),
+            ),
+            pytest.raises(ConnectorError, match="Could not write temp file"),
+        ):
+            await connector.fetch("confluence://page/12345")

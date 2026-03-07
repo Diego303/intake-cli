@@ -276,7 +276,22 @@ Los flags de la CLI (`--specs-dir`, `--project-dir`, `--transport`, `--port`) so
 
 ### Claude Code
 
-En `claude_desktop_config.json` o configuracion equivalente:
+**Opcion 1: `.mcp.json` en el proyecto** (recomendado para Claude Code CLI)
+
+```json
+{
+  "mcpServers": {
+    "intake": {
+      "command": "intake",
+      "args": ["mcp", "serve", "--specs-dir", "./specs"]
+    }
+  }
+}
+```
+
+Commitear `.mcp.json` en el repo para que todo el equipo tenga acceso al servidor MCP automaticamente.
+
+**Opcion 2: `claude_desktop_config.json`** (para Claude Desktop)
 
 ```json
 {

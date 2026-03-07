@@ -4,8 +4,14 @@
 #
 # Configuration priority (highest wins):
 #   CLI flags > .intake.yaml > preset > hardcoded defaults
+#
+# Presets:
+#   --preset minimal      → fast & cheap for prototyping
+#   --preset standard     → balanced (default behavior)
+#   --preset enterprise   → detailed with full traceability
 
-# LLM settings for requirement analysis
+# ─── LLM settings for requirement analysis ───────────────────────────────────
+
 llm:
   model: claude-sonnet-4           # Any model supported by LiteLLM
   api_key_env: ANTHROPIC_API_KEY     # Environment variable holding the API key
@@ -14,14 +20,21 @@ llm:
   max_retries: 3                     # Retry count on LLM failures
   timeout: 120                       # Timeout per LLM call (seconds)
 
-# Project metadata
+# ─── Project metadata ────────────────────────────────────────────────────────
+
 project:
   name: ""                           # Auto-detected from description if empty
   stack: []                          # Auto-detected from project files if empty
+                                     # E.g.: ["python", "fastapi", "postgresql"]
   language: en                       # Language for generated spec content
-  conventions: {}                    # Custom conventions: { "testing": "pytest", ... }
+                                     # Supported: en, es, fr, de, pt, ja, zh, ...
+  conventions: {}                    # Custom conventions, e.g.:
+                                     #   testing: pytest
+                                     #   linting: ruff
+                                     #   style: google-docstrings
 
-# Spec generation settings
+# ─── Spec generation settings ────────────────────────────────────────────────
+
 spec:
   output_dir: ./specs                # Where to write generated specs
   requirements_format: ears          # ears | user-stories | bdd | free
@@ -31,25 +44,102 @@ spec:
   version_specs: true                # Create versioned spec directories
   generate_lock: true                # Generate spec.lock.yaml for reproducibility
   risk_assessment: true              # Include risk matrix in analysis
+  auto_mode: true                    # Auto-detect quick/standard/enterprise mode
+                                     # based on input complexity
 
-# Verification settings
+# ─── Verification settings ───────────────────────────────────────────────────
+
 verification:
   auto_generate_tests: true          # Generate acceptance checks from requirements
   test_output_dir: ./tests/generated # Where to write generated tests
-  checks: []                         # Additional custom checks
+  checks: []                         # Additional custom checks (list of strings)
   timeout_per_check: 120             # Timeout per acceptance check (seconds)
 
-# Export settings
+# ─── Export settings ─────────────────────────────────────────────────────────
+
 export:
-  default_format: generic            # architect | generic (claude-code, cursor, kiro: planned)
+  default_format: generic            # architect | claude-code | cursor | kiro
+                                     # | copilot | generic
   architect_include_guardrails: true # Include guardrails in architect pipeline
   architect_pipeline_template: standard
-  claude_code_generate_claude_md: true
+  claude_code_generate_claude_md: true  # Generate CLAUDE.md for Claude Code
+  claude_code_task_dir: .intake/tasks   # Task files directory for Claude Code
+  cursor_rules_dir: .cursor/rules       # Rules directory for Cursor
 
-# Security settings
+# ─── Security settings ──────────────────────────────────────────────────────
+
 security:
-  redact_patterns: []                # Regex patterns to redact from spec output
+  redact_patterns: []                # Regex patterns to redact before LLM analysis
+                                     # Examples:
+                                     #   - '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'  # Emails
+                                     #   - '\b\d{3}-\d{2}-\d{4}\b'        # SSN
+                                     #   - 'password\s*[:=]\s*\S+'         # Passwords in text
   redact_files:                      # File patterns to never include
     - "*.env"
     - "*.pem"
     - "*.key"
+
+# ─── Live API connectors ────────────────────────────────────────────────────
+# Requires: pip install intake-ai-cli[connectors]
+# Source URIs: jira://PROJ-123, confluence://SPACE/Title, github://org/repo/issues/42
+
+connectors:
+  jira:
+    url: ""                          # Jira instance URL (e.g., https://your-org.atlassian.net)
+    auth_type: token                 # token | oauth | api_key
+    token_env: JIRA_API_TOKEN        # Environment variable for Jira API token
+    email_env: JIRA_EMAIL            # Environment variable for Jira email
+    default_project: ""              # Default project key (e.g., PROJ)
+    include_comments: true           # Include issue comments
+    max_comments: 5                  # Max comments per issue
+    fields:                          # Jira fields to fetch
+      - summary
+      - description
+      - labels
+      - priority
+      - status
+      - issuelinks
+      - comment
+
+  confluence:
+    url: ""                          # Confluence URL (e.g., https://your-org.atlassian.net/wiki)
+    auth_type: token                 # token | oauth
+    token_env: CONFLUENCE_API_TOKEN  # Environment variable for Confluence API token
+    email_env: CONFLUENCE_EMAIL      # Environment variable for Confluence email
+    default_space: ""                # Default space key (e.g., ENG)
+    include_child_pages: false       # Fetch child pages recursively
+    max_depth: 1                     # Max recursion depth for child pages
+
+  github:
+    token_env: GITHUB_TOKEN          # Environment variable for GitHub token
+    default_repo: ""                 # Default repo (e.g., org/repo)
+
+# ─── Feedback loop ──────────────────────────────────────────────────────────
+# Analyzes verification failures and suggests fixes
+
+feedback:
+  auto_amend_spec: false             # Auto-apply spec amendments from feedback
+  max_suggestions: 10                # Max suggestions per feedback analysis
+  include_code_snippets: true        # Include code examples in suggestions
+
+# ─── MCP server (Model Context Protocol) ────────────────────────────────────
+# Requires: pip install intake-ai-cli[mcp]
+# Exposes intake as an MCP server for AI agents
+
+mcp:
+  specs_dir: ./specs                 # Base directory for specs
+  project_dir: .                     # Project root for verification
+  transport: stdio                   # stdio (for CLI agents) | sse (for HTTP)
+  sse_port: 8080                     # Port for SSE transport
+
+# ─── Watch mode (file monitoring + auto-verification) ───────────────────────
+# Requires: pip install intake-ai-cli[watch]
+
+watch:
+  debounce_seconds: 2.0              # Wait after last change before re-checking
+  ignore_patterns:                   # Files/directories to ignore
+    - "*.pyc"
+    - "__pycache__"
+    - ".git"
+    - "node_modules"
+    - ".intake"

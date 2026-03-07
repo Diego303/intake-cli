@@ -281,8 +281,13 @@ See the [`examples/`](examples/) directory for ready-to-run scenarios:
 |---------|-------------|
 | [`from-markdown`](examples/from-markdown/) | Single Markdown file with OAuth2 requirements |
 | [`from-jira`](examples/from-jira/) | Jira JSON export with 3 issues |
+| [`from-jira-api`](examples/from-jira-api/) | Live Jira API connector (no manual export) |
 | [`from-scratch`](examples/from-scratch/) | Free-text meeting notes |
 | [`multi-source`](examples/multi-source/) | Combining Markdown + Jira JSON + text notes |
+| [`quick-mode`](examples/quick-mode/) | Simple task with minimal output |
+| [`mcp-session`](examples/mcp-session/) | MCP server setup and walkthrough |
+| [`feedback-loop`](examples/feedback-loop/) | Verify, analyze failures, fix, repeat |
+| [`plugin-custom-parser`](examples/plugin-custom-parser/) | How to create a custom parser plugin |
 
 ---
 
@@ -442,30 +447,61 @@ intake export ./specs/auth -f copilot -o .
 
 ### MCP Server (AI Agent Integration)
 
-intake exposes specs via the [Model Context Protocol](https://modelcontextprotocol.io/), allowing AI agents to consume specs in real time:
+intake exposes specs via the [Model Context Protocol](https://modelcontextprotocol.io/), allowing AI agents to consume specs in real time during development.
+
+Install MCP support: `pip install intake-ai-cli[mcp]`
+
+#### Setup for Claude Code
+
+Add to your project's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "intake": {
+      "command": "intake",
+      "args": ["mcp", "serve", "--specs-dir", "./specs", "--project-dir", "."]
+    }
+  }
+}
+```
+
+#### Setup for Cursor
+
+Add to Cursor MCP settings (Settings > MCP Servers):
+
+```json
+{
+  "intake": {
+    "command": "intake",
+    "args": ["mcp", "serve", "--specs-dir", "./specs", "--project-dir", "."]
+  }
+}
+```
+
+#### SSE Transport (Remote/IDE)
 
 ```bash
-# Start MCP server with stdio transport (for CLI agents like Claude Code)
-intake mcp serve --transport stdio
-
-# Start MCP server with SSE transport (for IDE integrations)
 intake mcp serve --transport sse --port 8080
 ```
 
-**MCP tools available to agents:**
-- `intake_show` — View spec summary
-- `intake_get_context` — Read project context
-- `intake_get_tasks` — List tasks with status filtering
-- `intake_update_task` — Mark tasks as done/in_progress
-- `intake_verify` — Run acceptance checks
-- `intake_feedback` — Analyze verification failures
-- `intake_list_specs` — List available specs
+#### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `intake_show` | View spec summary |
+| `intake_get_context` | Read project context (stack, conventions) |
+| `intake_get_tasks` | List tasks with status filtering |
+| `intake_update_task` | Mark tasks as done/in_progress/blocked |
+| `intake_verify` | Run acceptance checks |
+| `intake_feedback` | Analyze verification failures |
+| `intake_list_specs` | List available specs |
 
 **MCP resources:** Direct access to spec files via `intake://specs/{name}/{section}` URIs.
 
 **MCP prompts:** `implement_next_task` and `verify_and_fix` provide structured starting points for agents.
 
-Install MCP support: `pip install intake-ai-cli[mcp]`
+See [`examples/mcp-session/`](examples/mcp-session/) for a complete walkthrough.
 
 ### Watch Mode
 
@@ -498,12 +534,26 @@ intake feedback ./specs/auth --agent-format claude-code
 
 ### With CI/CD
 
+#### GitHub Actions (built-in action)
+
 ```yaml
-# GitHub Actions
+# .github/workflows/verify.yml
+- name: Verify spec compliance
+  uses: Diego303/intake-cli/action@main
+  with:
+    spec-dir: ./specs/auth-system
+    project-dir: .
+    report-format: junit
+    report-output: intake-report.xml
+```
+
+#### Manual setup
+
+```yaml
 - name: Verify spec compliance
   run: |
     pip install intake-ai-cli
-    intake verify specs/auth-system/ -p . --format junit
+    intake verify specs/auth-system/ -p . --format junit -o report.xml
 ```
 
 ---
@@ -527,7 +577,7 @@ ruff format src/ tests/
 mypy src/ --strict
 ```
 
-Current test suite: **772 tests**, **0 mypy --strict errors**, **0 ruff warnings**.
+Current test suite: **775 tests**, **0 mypy --strict errors**, **0 ruff warnings**.
 
 ### Implementation Status
 
@@ -565,6 +615,40 @@ export ANTHROPIC_API_KEY=sk-ant-...
 # or
 export OPENAI_API_KEY=sk-...
 ```
+
+---
+
+## Plugin Development
+
+intake supports custom parsers, exporters, and connectors via Python entry points (PEP 621). Any pip-installable package can extend intake.
+
+```python
+# Example: custom parser plugin
+from intake.plugins.protocols import ParserPlugin, PluginMeta
+from intake.ingest.base import ParsedContent
+
+class NotionParser:
+    @property
+    def meta(self) -> PluginMeta:
+        return PluginMeta(name="notion", version="0.1.0", description="Notion parser")
+
+    @property
+    def supported_extensions(self) -> list[str]:
+        return [".html"]
+
+    def can_parse(self, source: str) -> bool: ...
+    def confidence(self, source: str) -> float: ...
+    def parse(self, source: str) -> ParsedContent: ...
+```
+
+Register in your package's `pyproject.toml`:
+
+```toml
+[project.entry-points."intake.parsers"]
+notion = "my_package:NotionParser"
+```
+
+See [`examples/plugin-custom-parser/`](examples/plugin-custom-parser/) for a complete guide covering parsers, exporters, and connectors.
 
 ---
 
