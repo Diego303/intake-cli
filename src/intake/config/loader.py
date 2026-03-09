@@ -106,7 +106,12 @@ def _merge_yaml(config: IntakeConfig, path: Path) -> IntakeConfig:
             continue
 
         current_section = getattr(config, section_key)
-        updates[section_key] = current_section.model_copy(update=section_data)
+        # Use model_validate instead of model_copy to properly
+        # deserialize nested Pydantic models (e.g. GitlabConfig
+        # inside ConnectorsConfig). model_copy does a shallow merge
+        # that leaves nested dicts as raw dicts.
+        merged = {**current_section.model_dump(), **section_data}
+        updates[section_key] = type(current_section).model_validate(merged)
 
     return config.model_copy(update=updates)
 
@@ -136,6 +141,7 @@ def _merge_overrides(config: IntakeConfig, overrides: dict[str, Any]) -> IntakeC
             logger.warning("config_override_unknown_section", section=section_key)
             continue
         current_section = getattr(config, section_key)
-        updates[section_key] = current_section.model_copy(update=fields)
+        merged = {**current_section.model_dump(), **fields}
+        updates[section_key] = type(current_section).model_validate(merged)
 
     return config.model_copy(update=updates)

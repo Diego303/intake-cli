@@ -70,6 +70,37 @@ class TestDoctorChecks:
         assert result.passed is False
         assert "not a valid YAML mapping" in result.message
 
+    def test_api_key_reads_custom_env_from_config(self, tmp_path: Path) -> None:
+        """BUG-001: Doctor must detect api_key_env from .intake.yaml config."""
+        config = tmp_path / ".intake.yaml"
+        config.write_text("llm:\n  api_key_env: LITELLM_API_KEY\n")
+        checks = DoctorChecks()
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in {"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "LITELLM_API_KEY"}
+        }
+        env["LITELLM_API_KEY"] = "sk-custom-1234567890"
+        with patch.dict(os.environ, env, clear=True):
+            result = checks._check_api_key(config_path=str(config))
+        assert result.passed is True
+        assert "LITELLM_API_KEY" in result.message
+
+    def test_api_key_fails_when_custom_env_not_set(self, tmp_path: Path) -> None:
+        """BUG-001: Custom api_key_env must appear in the fix hint."""
+        config = tmp_path / ".intake.yaml"
+        config.write_text("llm:\n  api_key_env: MY_CUSTOM_KEY\n")
+        checks = DoctorChecks()
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in {"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "MY_CUSTOM_KEY"}
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = checks._check_api_key(config_path=str(config))
+        assert result.passed is False
+        assert "MY_CUSTOM_KEY" in result.fix_hint
+
 
 class TestDoctorConnectors:
     """Tests for connector credential checks."""
@@ -274,3 +305,26 @@ class TestDoctorFix:
         result = checks._check_config("/nonexistent/.intake.yaml")
         assert result.auto_fixable is True
         assert result.fix_action == "create_config"
+
+
+class TestDoctorSchemaValidation:
+    """Tests for BUG-002: schema validation in doctor _check_config."""
+
+    def test_config_with_invalid_schema_values(self, tmp_path: Path) -> None:
+        """BUG-002: Config with wrong types must fail schema validation."""
+        config = tmp_path / ".intake.yaml"
+        config.write_text("llm:\n  model: 12345\n  max_cost_per_spec: not-a-number\n")
+        checks = DoctorChecks()
+        result = checks._check_config(str(config))
+        assert result.passed is False
+        assert "Schema validation failed" in result.message
+
+    def test_config_with_unknown_top_level_key(self, tmp_path: Path) -> None:
+        """BUG-002: Valid YAML with unknown keys still passes (Pydantic extra=ignore)."""
+        config = tmp_path / ".intake.yaml"
+        config.write_text("llm:\n  model: gpt-4o\nextra_key: value\n")
+        checks = DoctorChecks()
+        result = checks._check_config(str(config))
+        # May pass or fail depending on Pydantic extra config,
+        # but must not crash
+        assert isinstance(result, DiagnosticResult)

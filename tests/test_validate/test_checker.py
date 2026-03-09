@@ -240,6 +240,54 @@ class TestReportProperties:
         assert len(report.errors) > 0
 
 
+class TestCheckCrossReferences:
+    """Tests for BUG-007: acceptance checks referencing non-existent requirements."""
+
+    def test_check_referencing_nonexistent_requirement(
+        self, validator: SpecValidator, tmp_path: Path
+    ) -> None:
+        """BUG-007: Check with FR-99 in tags must produce cross-ref error."""
+        (tmp_path / "requirements.md").write_text("# Reqs\n### FR-01: Login\nLogin feature.")
+        (tmp_path / "tasks.md").write_text("# Tasks\n### Task 1: Login\nImplements FR-01.")
+        (tmp_path / "acceptance.yaml").write_text(
+            "checks:\n"
+            "  - id: AC-01\n"
+            "    name: 'Check FR-99 compliance'\n"
+            "    type: command\n"
+            "    command: echo ok\n"
+            "    tags: [FR-99]\n"
+        )
+        report = validator.validate(str(tmp_path))
+        xref_errors = [
+            i
+            for i in report.errors
+            if i.category == "cross_reference"
+            and "FR-99" in i.message
+            and "acceptance.yaml" in i.file
+        ]
+        assert len(xref_errors) >= 1
+
+    def test_check_with_valid_requirement_no_error(
+        self, validator: SpecValidator, tmp_path: Path
+    ) -> None:
+        """BUG-007: Check referencing existing requirement must not produce error."""
+        (tmp_path / "requirements.md").write_text("# Reqs\n### FR-01: Login\nLogin feature.")
+        (tmp_path / "tasks.md").write_text("# Tasks\n### Task 1: Login\nImplements FR-01.")
+        (tmp_path / "acceptance.yaml").write_text(
+            "checks:\n"
+            "  - id: AC-01\n"
+            "    name: 'Check FR-01'\n"
+            "    type: command\n"
+            "    command: echo ok\n"
+            "    tags: [FR-01]\n"
+        )
+        report = validator.validate(str(tmp_path))
+        xref_errors = [
+            i for i in report.errors if i.category == "cross_reference" and "AC-01" in i.message
+        ]
+        assert len(xref_errors) == 0
+
+
 class TestInvalidYaml:
     """Tests for invalid acceptance.yaml handling."""
 

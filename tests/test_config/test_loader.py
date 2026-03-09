@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from intake.config.loader import ConfigError, load_config
+from intake.config.schema import GitlabConfig, JiraConfig
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -66,3 +67,43 @@ class TestLoadConfig:
         assert config.spec.design_depth == "minimal"
         # YAML wins over preset for model
         assert config.llm.model == "gpt-4o"
+
+    def test_connectors_gitlab_deserialized(self, tmp_path: Path) -> None:
+        """BUG-006: Connector configs must be proper Pydantic models, not dicts."""
+        config_content = """\
+connectors:
+  gitlab:
+    url: https://gitlab.example.com
+    token_env: MY_GITLAB_TOKEN
+    ssl_verify: false
+    default_project: group/project
+"""
+        config_path = tmp_path / ".intake.yaml"
+        config_path.write_text(config_content)
+
+        config = load_config(config_path=str(config_path))
+
+        assert isinstance(config.connectors.gitlab, GitlabConfig)
+        assert config.connectors.gitlab.url == "https://gitlab.example.com"
+        assert config.connectors.gitlab.token_env == "MY_GITLAB_TOKEN"
+        assert config.connectors.gitlab.ssl_verify is False
+        assert config.connectors.gitlab.default_project == "group/project"
+
+    def test_connectors_jira_deserialized(self, tmp_path: Path) -> None:
+        """Verify nested Pydantic models work for all connector types."""
+        config_content = """\
+connectors:
+  jira:
+    url: https://jira.example.com
+    token_env: MY_JIRA_TOKEN
+    max_comments: 20
+"""
+        config_path = tmp_path / ".intake.yaml"
+        config_path.write_text(config_content)
+
+        config = load_config(config_path=str(config_path))
+
+        assert isinstance(config.connectors.jira, JiraConfig)
+        assert config.connectors.jira.url == "https://jira.example.com"
+        assert config.connectors.jira.token_env == "MY_JIRA_TOKEN"
+        assert config.connectors.jira.max_comments == 20

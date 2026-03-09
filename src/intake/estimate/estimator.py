@@ -145,16 +145,23 @@ class CostEstimator:
 
         Returns:
             CostEstimate with projected costs and warnings.
+
+        Raises:
+            FileNotFoundError: If any source file does not exist.
         """
+        missing = [fp for fp in file_paths if not Path(fp).exists()]
+        if missing:
+            raise FileNotFoundError(f"Source file(s) not found: {', '.join(missing)}")
+
         total_words = 0
         for fp in file_paths:
             path = Path(fp)
-            if path.exists() and path.is_file():
+            if path.is_file():
                 try:
                     content = path.read_text(errors="ignore")
                     total_words += len(content.split())
                 except OSError:
-                    pass
+                    logger.warning("file_read_failed", path=fp)
 
         if mode is None:
             # Simple heuristic without full parsing

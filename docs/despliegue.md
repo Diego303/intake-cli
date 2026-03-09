@@ -34,7 +34,7 @@ En un `requirements.txt` o `pyproject.toml` del proyecto:
 
 ```text
 # requirements-tools.txt
-intake-ai-cli==0.6.0
+intake-ai-cli==1.0.0
 ```
 
 ```bash

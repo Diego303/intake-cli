@@ -1,6 +1,6 @@
 # Guia CLI
 
-intake proporciona 22 comandos y subcomandos. Todos siguen el patron:
+intake proporciona 22 comandos y subcomandos (incluyendo subcomandos de `plugins`, `task` y `mcp`). Todos siguen el patron:
 
 ```bash
 intake <comando> [argumentos] [opciones]
@@ -144,6 +144,39 @@ intake add specs/api-de-usuarios/ -s feedback-qa.md
 
 # Agregar y regenerar todo
 intake add specs/api-de-usuarios/ -s nuevos-reqs.yaml --regenerate
+```
+
+---
+
+## intake regenerate
+
+Regenera una spec desde cero con nuevas fuentes. Equivalente a `intake add SPEC_DIR --regenerate -s SOURCES`.
+
+```bash
+intake regenerate <SPEC_DIR> -s <fuente> [opciones]
+```
+
+### Argumento
+
+| Argumento | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `SPEC_DIR` | path | Si | Directorio de la spec existente. |
+
+### Opciones
+
+| Flag | Corto | Tipo | Default | Descripcion |
+|------|-------|------|---------|-------------|
+| `--source` | `-s` | texto | — | Fuentes para regenerar (repetible). Requerido. |
+| `--verbose` | `-v` | flag | false | Output detallado. |
+
+### Ejemplo
+
+```bash
+# Regenerar spec con fuentes actualizadas
+intake regenerate specs/api-de-usuarios/ -s requirements-v2.md -s notas.md
+
+# Regenerar con verbose
+intake regenerate specs/api-de-usuarios/ -s reqs.md -v
 ```
 
 ---
@@ -292,7 +325,7 @@ intake list [opciones]
 |------|-------|------|---------|-------------|
 | `--dir` | `-d` | path | `./specs` | Directorio donde buscar specs. |
 
-Detecta subdirectorios que contengan `requirements.md` o `acceptance.yaml`.
+Busca recursivamente subdirectorios que contengan `requirements.md` o `acceptance.yaml`. Soporta specs anidadas en cualquier profundidad.
 
 ### Ejemplo
 
@@ -370,14 +403,15 @@ intake doctor [opciones]
 | Check | Que verifica | Auto-fixable |
 |-------|-------------|--------------|
 | Python version | Python >= 3.12 | No |
-| LLM API key | `ANTHROPIC_API_KEY` o `OPENAI_API_KEY` definida | No |
+| LLM API key | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, o `llm.api_key_env` de `.intake.yaml` | No |
 | pdfplumber | Paquete instalado | Si |
 | python-docx | Paquete instalado | Si |
 | beautifulsoup4 | Paquete instalado | Si |
 | markdownify | Paquete instalado | Si |
 | litellm | Paquete instalado | Si |
 | jinja2 | Paquete instalado | Si |
-| Config file | `.intake.yaml` existe y es YAML valido | Si (crea uno basico) |
+| Config file | `.intake.yaml` existe, es YAML valido, y pasa validacion de esquema Pydantic | Si (crea uno basico) |
+| Connectors | Credenciales de Jira, Confluence, GitHub, GitLab (si estan configurados) | No |
 
 ### --fix
 
@@ -739,7 +773,7 @@ intake validate <SPEC_DIR> [opciones]
 | Categoria | Que verifica |
 |-----------|-------------|
 | `structure` | Archivos requeridos existen y no estan vacios; YAML es valido |
-| `cross_reference` | Tareas referencian requisitos validos; requisitos no estan huerfanos |
+| `cross_reference` | Tareas y checks de aceptacion referencian requisitos validos; requisitos no estan huerfanos |
 | `consistency` | DAG de tareas sin ciclos; IDs de tareas son secuenciales |
 | `acceptance` | Checks tienen tipo valido, comandos no vacios, patrones regex validos, paths definidos |
 | `completeness` | Cada requisito funcional tiene al menos una tarea implementadora |
@@ -882,7 +916,7 @@ intake export-ci specs/mi-feature/ -p gitlab && git add .gitlab-ci.yml
 | `--help` | Muestra la ayuda del comando |
 
 ```bash
-intake --version    # intake, version 0.6.0
+intake --version    # intake, version 1.0.0
 intake --help       # Ayuda general
 intake init --help  # Ayuda del comando init
 ```

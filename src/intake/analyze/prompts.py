@@ -148,6 +148,13 @@ Your job is to produce:
    - Code patterns that must exist or not exist
    - Files that must exist
 
+   IMPORTANT: Each check MUST have one of these exact types:
+   - "command": a shell command that must exit with code 0
+   - "files_exist": a list of file paths that must exist
+   - "pattern_present": regex patterns that must be found in files matching a glob
+   - "pattern_absent": regex patterns that must NOT be found in files matching a glob
+   Do NOT use any other type (no "grep", "code_pattern", "manual", etc).
+
 OUTPUT LANGUAGE: {language}
 DESIGN DEPTH: {design_depth}
 TASK GRANULARITY: {task_granularity}

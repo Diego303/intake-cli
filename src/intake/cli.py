@@ -152,7 +152,11 @@ def init(
     if lang:
         overrides["project.language"] = lang
     if output:
-        overrides["spec.output_dir"] = output
+        # When -o is explicit, treat it as the spec directory itself:
+        # set output_dir to the parent so that SpecBuilder creates
+        # files at exactly the path the user specified.
+        output_path = Path(output)
+        overrides["spec.output_dir"] = str(output_path.parent)
     if export_format:
         overrides["export.default_format"] = export_format
 
@@ -185,8 +189,8 @@ def init(
             )
             console.print(f"[dim]Detected stack: {', '.join(detected)}[/dim]")
 
-    # Set project name from description
-    spec_name = _slugify(description)
+    # Set spec name: use explicit -o basename, otherwise slugify description
+    spec_name = Path(output).name if output else _slugify(description)
     if not config.project.name:
         config = config.model_copy(
             update={
@@ -363,6 +367,34 @@ def add(spec_dir: str, source: tuple[str, ...], regenerate: bool, verbose: bool)
 @main.command()
 @click.argument("spec_dir", type=click.Path(exists=True))
 @click.option(
+    "--source",
+    "-s",
+    multiple=True,
+    required=True,
+    help="Sources to regenerate from.",
+)
+@click.option("--verbose", "-v", is_flag=True, help="Verbose output.")
+@click.pass_context
+def regenerate(
+    ctx: click.Context,
+    spec_dir: str,
+    source: tuple[str, ...],
+    verbose: bool,
+) -> None:
+    """Regenerate a spec from scratch.
+
+    Re-analyzes all sources and regenerates all spec files.
+    Equivalent to: intake add SPEC_DIR --regenerate -s SOURCES
+
+    Example:
+      intake regenerate ./specs/auth-oauth2 -s requirements.md -s notes.md
+    """
+    ctx.invoke(add, spec_dir=spec_dir, source=source, regenerate=True, verbose=verbose)
+
+
+@main.command()
+@click.argument("spec_dir", type=click.Path(exists=True))
+@click.option(
     "--project-dir",
     "-p",
     default=".",
@@ -398,6 +430,9 @@ def verify(
       1 = at least one required check failed
       2 = execution error
     """
+    # Ensure structlog writes to stderr, not stdout (critical for --format json)
+    setup_logging(verbose=False)
+
     try:
         config = load_config()
     except Exception as e:
@@ -423,9 +458,10 @@ def verify(
         reporter = get_reporter(report_format)
         output = reporter.render(report)
 
-        # For non-terminal formats, print the output directly
+        # For non-terminal formats, write raw output to stdout so it can
+        # be piped/redirected without Rich markup or structlog contamination.
         if report_format != "terminal":
-            console.print(output)
+            click.echo(output)
 
         sys.exit(report.exit_code)
 
@@ -727,15 +763,16 @@ def list_specs(specs_dir: str) -> None:
         console.print("Run 'intake init' to generate your first spec.")
         return
 
-    # Find spec directories (those containing at least requirements.md or acceptance.yaml)
-    specs = []
-    for item in sorted(specs_path.iterdir()):
-        if item.is_dir():
-            has_spec_files = (item / "requirements.md").exists() or (
-                item / "acceptance.yaml"
-            ).exists()
-            if has_spec_files:
-                specs.append(item)
+    # Find spec directories recursively (containing requirements.md or acceptance.yaml)
+    seen: set[Path] = set()
+    specs: list[Path] = []
+    for marker in ("requirements.md", "acceptance.yaml"):
+        for fpath in specs_path.rglob(marker):
+            spec_dir = fpath.parent
+            if spec_dir not in seen:
+                seen.add(spec_dir)
+                specs.append(spec_dir)
+    specs.sort()
 
     if not specs:
         console.print(f"[yellow]No specs found in {specs_dir}[/yellow]")
@@ -755,11 +792,12 @@ def list_specs(specs_dir: str) -> None:
     for spec_dir in specs:
         file_count = sum(1 for f in spec_dir.iterdir() if f.is_file())
         lock_path = spec_dir / LOCK_FILENAME
+        display_name = str(spec_dir.relative_to(specs_path))
 
         if lock_path.exists():
             lock = SpecLock.from_yaml(str(lock_path))
             table.add_row(
-                spec_dir.name,
+                display_name,
                 str(file_count),
                 lock.model or "—",
                 str(lock.requirement_count),
@@ -767,7 +805,7 @@ def list_specs(specs_dir: str) -> None:
                 lock.created_at[:10] if lock.created_at else "—",
             )
         else:
-            table.add_row(spec_dir.name, str(file_count), "—", "—", "—", "—")
+            table.add_row(display_name, str(file_count), "—", "—", "—", "—")
 
     console.print(table)
 

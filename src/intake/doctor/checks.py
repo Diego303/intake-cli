@@ -112,7 +112,7 @@ class DoctorChecks:
         """
         results: list[DiagnosticResult] = []
         results.append(self._check_python_version())
-        results.append(self._check_api_key())
+        results.append(self._check_api_key(config_path))
         results.extend(self._check_optional_deps())
         results.append(self._check_config(config_path))
         results.extend(self._check_connectors(config_path))
@@ -178,9 +178,20 @@ class DoctorChecks:
             fix_hint="Install Python 3.12+: https://python.org/downloads",
         )
 
-    def _check_api_key(self) -> DiagnosticResult:
-        """Check that at least one LLM API key is set."""
-        for var in API_KEY_ENV_VARS:
+    def _check_api_key(self, config_path: str = ".intake.yaml") -> DiagnosticResult:
+        """Check that at least one LLM API key is set.
+
+        Checks the well-known env vars (ANTHROPIC_API_KEY, OPENAI_API_KEY)
+        and also reads ``llm.api_key_env`` from the config file so that
+        custom env vars (e.g. LITELLM_API_KEY) are detected too.
+        """
+        # Build the list of env vars to check: well-known + config-specified
+        env_vars_to_check = list(API_KEY_ENV_VARS)
+        custom_env = self._read_api_key_env_from_config(config_path)
+        if custom_env and custom_env not in env_vars_to_check:
+            env_vars_to_check.insert(0, custom_env)
+
+        for var in env_vars_to_check:
             value = os.environ.get(var)
             if value:
                 masked = value[:4] + "..." + value[-4:] if len(value) > 8 else "***"
@@ -189,13 +200,30 @@ class DoctorChecks:
                     passed=True,
                     message=f"{var} is set ({masked})",
                 )
-        env_list = ", ".join(API_KEY_ENV_VARS)
+        env_list = ", ".join(env_vars_to_check)
         return DiagnosticResult(
             name="LLM API key",
             passed=False,
             message="No LLM API key found in environment",
             fix_hint=f"Set one of: {env_list}",
         )
+
+    @staticmethod
+    def _read_api_key_env_from_config(config_path: str) -> str:
+        """Read llm.api_key_env from the config file, if available."""
+        path = Path(config_path)
+        if not path.exists():
+            return ""
+        try:
+            raw = path.read_text(encoding="utf-8")
+            data = yaml.safe_load(raw)
+            if isinstance(data, dict):
+                llm_section = data.get("llm", {})
+                if isinstance(llm_section, dict):
+                    return str(llm_section.get("api_key_env", ""))
+        except (yaml.YAMLError, OSError):
+            pass
+        return ""
 
     def _check_optional_deps(self) -> list[DiagnosticResult]:
         """Check that optional dependencies are installed."""
@@ -225,7 +253,7 @@ class DoctorChecks:
         return results
 
     def _check_config(self, config_path: str) -> DiagnosticResult:
-        """Check that the config file is valid YAML (if it exists)."""
+        """Check that the config file is valid YAML and conforms to the schema."""
         path = Path(config_path)
         if not path.exists():
             return DiagnosticResult(
@@ -246,17 +274,39 @@ class DoctorChecks:
                     message=f"{config_path} is not a valid YAML mapping",
                     fix_hint="The config file should contain key: value pairs.",
                 )
-            return DiagnosticResult(
-                name="Configuration file",
-                passed=True,
-                message=f"{config_path} is valid YAML",
-            )
         except yaml.YAMLError as e:
             return DiagnosticResult(
                 name="Configuration file",
                 passed=False,
                 message=f"Invalid YAML in {config_path}: {e}",
                 fix_hint="Check YAML syntax and indentation.",
+            )
+
+        # Validate against the IntakeConfig pydantic schema
+        try:
+            from pydantic import ValidationError as PydanticValidationError
+
+            from intake.config.schema import IntakeConfig
+
+            IntakeConfig.model_validate(data)
+            return DiagnosticResult(
+                name="Configuration file",
+                passed=True,
+                message=f"{config_path} is valid",
+            )
+        except PydanticValidationError as e:
+            # Summarise the first few validation errors
+            errors = e.errors()
+            details = "; ".join(
+                f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}" for err in errors[:3]
+            )
+            if len(errors) > 3:
+                details += f" (+{len(errors) - 3} more)"
+            return DiagnosticResult(
+                name="Configuration file",
+                passed=False,
+                message=f"Schema validation failed: {details}",
+                fix_hint="Check field types and values in .intake.yaml.",
             )
 
     def _check_connectors(self, config_path: str) -> list[DiagnosticResult]:

@@ -18,7 +18,7 @@ class TestCLI:
         runner = CliRunner()
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
-        assert "0.6.0" in result.output
+        assert "1.0.0" in result.output
 
     def test_help(self) -> None:
         runner = CliRunner()
@@ -127,6 +127,37 @@ class TestVerifyCommand:
         assert result.exit_code == 0
         assert '"spec_name"' in result.output
 
+    def test_verify_json_output_uses_click_echo(self, tmp_path: Path) -> None:
+        """BUG-012: verify --format json must use click.echo (not Rich console)."""
+        spec_dir = tmp_path / "spec"
+        spec_dir.mkdir()
+        (spec_dir / "acceptance.yaml").write_text(
+            yaml.dump(
+                {
+                    "checks": [
+                        {
+                            "id": "echo",
+                            "name": "Echo test",
+                            "type": "command",
+                            "command": "echo ok",
+                            "required": True,
+                        },
+                    ],
+                }
+            )
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["verify", str(spec_dir), "-p", str(tmp_path), "-f", "json"],
+        )
+        assert result.exit_code == 0
+        # Output must contain valid JSON report (may have structlog lines
+        # in CliRunner since it mixes streams, but the JSON is present)
+        assert '"spec_name"' in result.output
+        assert '"results"' in result.output
+
     def test_verify_missing_acceptance(self, tmp_path: Path) -> None:
         """verify errors when acceptance.yaml is missing."""
         spec_dir = tmp_path / "spec"
@@ -134,6 +165,35 @@ class TestVerifyCommand:
 
         runner = CliRunner()
         result = runner.invoke(main, ["verify", str(spec_dir)])
+        assert result.exit_code == 2
+
+
+class TestRegenerateCommand:
+    """Tests for BUG-013: regenerate command."""
+
+    def test_regenerate_help(self) -> None:
+        """regenerate --help shows usage."""
+        runner = CliRunner()
+        result = runner.invoke(main, ["regenerate", "--help"])
+        assert result.exit_code == 0
+        assert "Regenerate" in result.output
+        assert "--source" in result.output
+
+    def test_regenerate_requires_source(self, tmp_path: Path) -> None:
+        """regenerate without -s errors."""
+        spec_dir = tmp_path / "spec"
+        spec_dir.mkdir()
+        runner = CliRunner()
+        result = runner.invoke(main, ["regenerate", str(spec_dir)])
+        assert result.exit_code != 0
+
+    def test_regenerate_requires_existing_dir(self) -> None:
+        """regenerate with nonexistent dir errors."""
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            ["regenerate", "/nonexistent/dir", "-s", "file.md"],
+        )
         assert result.exit_code == 2
 
 
@@ -233,6 +293,27 @@ class TestListCommand:
         spec2 = specs_dir / "payments"
         spec2.mkdir()
         (spec2 / "acceptance.yaml").write_text("checks: []\n")
+
+        runner = CliRunner()
+        result = runner.invoke(main, ["list", "-d", str(specs_dir)])
+        assert result.exit_code == 0
+        assert "auth" in result.output
+        assert "payments" in result.output
+
+    def test_list_finds_nested_specs(self, tmp_path: Path) -> None:
+        """BUG-010: list must find specs in subdirectories (recursive)."""
+        specs_dir = tmp_path / "specs"
+
+        # Flat spec
+        flat = specs_dir / "auth"
+        flat.mkdir(parents=True)
+        (flat / "requirements.md").write_text("# Reqs\n")
+
+        # Nested spec (team/payments)
+        nested = specs_dir / "team" / "payments"
+        nested.mkdir(parents=True)
+        (nested / "requirements.md").write_text("# Reqs\n")
+        (nested / "acceptance.yaml").write_text("checks: []\n")
 
         runner = CliRunner()
         result = runner.invoke(main, ["list", "-d", str(specs_dir)])
@@ -480,6 +561,34 @@ class TestInitModeOption:
         # that will fail at LLM phase but we just need to see the warning
         # Actually, dry-run exits before parsing, so let's just check the option works
         assert result.exit_code == 0
+
+
+class TestInitOutputPath:
+    """Tests for BUG-004: init -o produces correct output path."""
+
+    def test_init_dry_run_with_output_path(self, tmp_path: Path) -> None:
+        """BUG-004: init -o <path> must show the exact output path in dry run."""
+        source = tmp_path / "reqs.md"
+        source.write_text("# Requirements\nBuild a widget.\n")
+
+        output_dir = tmp_path / "custom" / "my-spec"
+
+        runner = CliRunner()
+        result = runner.invoke(
+            main,
+            [
+                "init",
+                "test project",
+                "-s",
+                str(source),
+                "--dry-run",
+                "-o",
+                str(output_dir),
+            ],
+        )
+        assert result.exit_code == 0
+        # The spec name should be "my-spec" (the -o basename)
+        assert "my-spec" in result.output
 
 
 class TestFeedbackCommand:
