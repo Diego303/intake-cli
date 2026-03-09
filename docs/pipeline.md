@@ -221,7 +221,7 @@ El `AdaptiveSpecBuilder` envuelve al `SpecBuilder` estandar y filtra los archivo
 | `requirements.md` | `requirements.md.j2` | FR, NFR, conflictos, preguntas abiertas |
 | `design.md` | `design.md.j2` | Componentes, archivos, decisiones, dependencias |
 | `tasks.md` | `tasks.md.j2` | Tabla resumen + detalle por tarea |
-| `acceptance.yaml` | `acceptance.yaml.j2` | Checks ejecutables por tipo |
+| `acceptance.yaml` | _(generado via `yaml.dump()`)_ | Checks ejecutables por tipo |
 | `context.md` | `context.md.j2` | Info del proyecto, stack, riesgos |
 | `sources.md` | `sources.md.j2` | Fuentes, trazabilidad, conflictos |
 

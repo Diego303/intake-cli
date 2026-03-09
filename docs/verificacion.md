@@ -230,6 +230,8 @@ Tabla Rich con colores:
 
 ### JSON
 
+El output JSON se emite via `click.echo()` en stdout. Los logs de structlog van a stderr, garantizando que stdout contiene unicamente JSON parseable.
+
 ```bash
 intake verify specs/my-spec/ -p . -f json
 ```

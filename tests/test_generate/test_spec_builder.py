@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import yaml
+
 from intake.analyze.models import (
     AcceptanceCheck,
     AnalysisResult,
@@ -272,3 +274,62 @@ class TestSpecBuilder:
         content = (tmp_path / "test-spec" / "requirements.md").read_text()
         assert "Q-01" in content
         assert "OAuth" in content
+
+    def test_acceptance_yaml_valid_with_embedded_quotes(self, tmp_path: Path) -> None:
+        """BUG-008: Commands with embedded quotes must produce valid YAML."""
+        result = _sample_result()
+        result.design.acceptance_checks = [
+            AcceptanceCheck(
+                id="ac-quotes",
+                name='Registration endpoint "behavior"',
+                type="command",
+                required=True,
+                tags=["FR-01"],
+                command="python -c \"from src.auth.router import register_user; print('ok')\"",
+            ),
+            AcceptanceCheck(
+                id="ac-grep",
+                name="Token uses RS256",
+                type="command",
+                required=True,
+                tags=["FR-02"],
+                command='grep -R "RS256" src || true',
+            ),
+        ]
+
+        config = IntakeConfig()
+        config.spec.output_dir = str(tmp_path)
+        builder = SpecBuilder(config)
+        builder.generate(result, _sample_sources(), "test-spec")
+
+        yaml_path = tmp_path / "test-spec" / "acceptance.yaml"
+        raw = yaml_path.read_text()
+
+        # Must be valid YAML (this was the BUG-008 failure)
+        data = yaml.safe_load(raw)
+        assert isinstance(data, dict)
+        assert len(data["checks"]) == 2
+        assert "register_user" in data["checks"][0]["command"]
+        assert "RS256" in data["checks"][1]["command"]
+
+    def test_acceptance_yaml_valid_with_special_chars(self, tmp_path: Path) -> None:
+        """BUG-008: Special YAML chars (%, @, :) must be properly escaped."""
+        result = _sample_result()
+        result.design.acceptance_checks = [
+            AcceptanceCheck(
+                id="ac-special",
+                name="Check 100% coverage & @admin roles: verified",
+                type="command",
+                required=True,
+                command="echo '100% done' && test @admin",
+            ),
+        ]
+
+        config = IntakeConfig()
+        config.spec.output_dir = str(tmp_path)
+        builder = SpecBuilder(config)
+        builder.generate(result, _sample_sources(), "test-spec")
+
+        yaml_path = tmp_path / "test-spec" / "acceptance.yaml"
+        data = yaml.safe_load(yaml_path.read_text())
+        assert data["checks"][0]["name"] == "Check 100% coverage & @admin roles: verified"

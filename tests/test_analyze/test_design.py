@@ -126,3 +126,60 @@ class TestParseDesign:
         assert task.files == []
         assert task.dependencies == []
         assert task.estimated_minutes == 15
+
+    def test_normalizes_grep_check_type(self) -> None:
+        """BUG-009: LLM-generated 'grep' type must be normalized to 'pattern_present'."""
+        raw = {
+            "acceptance_checks": [
+                {
+                    "id": "check-grep",
+                    "name": "Grep check",
+                    "type": "grep",
+                    "command": "grep -r RS256 src/",
+                    "required": True,
+                },
+            ],
+        }
+        design = parse_design(raw)
+        assert design.acceptance_checks[0].type == "pattern_present"
+
+    def test_normalizes_code_pattern_check_type(self) -> None:
+        """BUG-009: 'code_pattern' type must be normalized."""
+        raw = {
+            "acceptance_checks": [
+                {
+                    "id": "check-cp",
+                    "name": "Code pattern check",
+                    "type": "code_pattern",
+                    "required": True,
+                },
+            ],
+        }
+        design = parse_design(raw)
+        assert design.acceptance_checks[0].type == "pattern_present"
+
+    def test_unknown_check_type_defaults_to_command(self) -> None:
+        """BUG-009: Completely unknown types default to 'command'."""
+        raw = {
+            "acceptance_checks": [
+                {
+                    "id": "check-unk",
+                    "name": "Unknown check",
+                    "type": "manual_review",
+                    "required": False,
+                },
+            ],
+        }
+        design = parse_design(raw)
+        assert design.acceptance_checks[0].type == "command"
+
+    def test_valid_check_types_unchanged(self) -> None:
+        """Valid check types should pass through without modification."""
+        for valid_type in ("command", "files_exist", "pattern_present", "pattern_absent"):
+            raw = {
+                "acceptance_checks": [
+                    {"id": "c", "name": "n", "type": valid_type},
+                ],
+            }
+            design = parse_design(raw)
+            assert design.acceptance_checks[0].type == valid_type

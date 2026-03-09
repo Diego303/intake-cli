@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-03-09
+
+### Added
+
+- **`intake regenerate` command** (`cli.py`): New top-level command to regenerate a spec from scratch. Equivalent to `intake add SPEC_DIR --regenerate -s SOURCES`. Delegates via `ctx.invoke(add, ...)`.
+
+### Fixed
+
+#### Critical fixes
+
+- **Config loader nested model deserialization** (`config/loader.py`): `model_copy(update=...)` left nested Pydantic models (GitlabConfig, JiraConfig, etc.) as raw dicts instead of proper model instances. Changed both `_merge_yaml()` and `_merge_overrides()` to use `model_validate()` for correct deep deserialization. **(BUG-006)**
+- **acceptance.yaml YAML injection** (`generate/spec_builder.py`): Jinja2 template `acceptance.yaml.j2` produced invalid YAML when LLM-generated commands contained embedded quotes (e.g., `python -c "from src..."`, `grep -R "RS256" src`). Replaced template rendering with programmatic `yaml.dump()` which handles all escaping automatically. **(BUG-008)**
+
+#### High-priority fixes
+
+- **Doctor custom API key detection** (`doctor/checks.py`): `_check_api_key()` now reads `llm.api_key_env` from `.intake.yaml` and checks that environment variable alongside the well-known keys (ANTHROPIC_API_KEY, OPENAI_API_KEY). Previously, custom API key env vars (e.g., LITELLM_API_KEY) were not detected. **(BUG-001)**
+- **LLM check type normalization** (`analyze/design.py`): LLMs sometimes return invalid check types like "grep", "code_pattern", "manual". Added `_normalize_check_type()` with alias map and fallback to "command". Also added explicit valid type list to the design prompt. **(BUG-009)**
+
+#### Medium-priority fixes
+
+- **Estimator file validation** (`estimate/estimator.py`): `estimate_from_files()` now raises `FileNotFoundError` with a list of missing files instead of silently counting zero words. **(BUG-003)**
+- **`init -o` output path** (`cli.py`): When `-o <path>` is provided, the parent directory is used as `output_dir` and the basename as `spec_name`. Previously the entire path was set as `output_dir`, creating specs in the wrong location. **(BUG-004)**
+- **Recursive spec listing** (`cli.py`): `intake list` now uses `rglob()` instead of `iterdir()` to find specs in subdirectories. Display uses relative paths from the specs root. **(BUG-010)**
+- **Clean JSON output for verify** (`cli.py`): `verify --format json` now calls `setup_logging(verbose=False)` to route structlog to stderr, and uses `click.echo()` instead of Rich console for non-terminal formats, ensuring stdout contains only parseable JSON. **(BUG-012)**
+
+#### Low-priority fixes
+
+- **Doctor schema validation** (`doctor/checks.py`): `_check_config()` now validates the config against the full `IntakeConfig` Pydantic schema after YAML syntax check. Reports up to 3 validation errors with field paths. **(BUG-002)**
+- **Validator check cross-references** (`validate/checker.py`): `_check_cross_references()` now validates that acceptance checks referencing requirements (via name or tags) point to existing requirement IDs. **(BUG-007)**
+
+### Changed
+
+- **acceptance.yaml generation**: Now uses `yaml.dump()` instead of Jinja2 template rendering. Output format is identical but guaranteed to be valid YAML regardless of content. The `acceptance.yaml.j2` template is still shipped but no longer used for generation.
+- **Design prompt** (`analyze/prompts.py`): Added explicit valid check type list to prevent LLM from generating invalid types.
+
+### Test suite
+
+- **902 tests** (up from 882), **0 failures**, **10 skipped**. 20 new tests covering all 12 bug fixes.
+- **0 mypy --strict errors** (91 source files).
+- **0 ruff warnings**, **0 format issues** (174 files).
+
 ## [0.6.0] - 2026-03-07
 
 ### Added

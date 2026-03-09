@@ -377,6 +377,27 @@ class SpecValidator:
                         )
                     )
 
+        # Acceptance checks referencing non-existent requirements
+        for cid, refs in check_req_refs.items():
+            for ref in refs:
+                if ref not in requirement_ids:
+                    report.issues.append(
+                        ValidationIssue(
+                            severity="error",
+                            category="cross_reference",
+                            message=(
+                                f"Check {cid} references {ref}, which does not "
+                                f"exist in requirements.md"
+                            ),
+                            file="acceptance.yaml",
+                            item_id=f"Check {cid}",
+                            suggestion=(
+                                f"Add {ref} to requirements.md or remove "
+                                f"the reference from check {cid}."
+                            ),
+                        )
+                    )
+
         # Orphaned requirements (not referenced by any task or check)
         all_referenced: set[str] = set()
         for refs in task_req_refs.values():

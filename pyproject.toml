@@ -1,6 +1,6 @@
 [project]
 name = "intake-ai-cli"
-version = "0.6.0"
+version = "1.0.0"
 description = "From requirements in any format to verified implementation"
 readme = "README.md"
 license = {text = "MIT"}

@@ -47,7 +47,7 @@ pip install -e ".[dev]"
 | Documento | Descripcion |
 |-----------|-------------|
 | [Arquitectura](arquitectura.md) | Arquitectura del sistema, modulos, flujo de datos y decisiones de diseno |
-| [Guia CLI](guia-cli.md) | Referencia completa de los 22 comandos/subcomandos con todas sus opciones |
+| [Guia CLI](guia-cli.md) | Referencia completa de los 22 comandos/subcomandos con opciones y ejemplos |
 | [Configuracion](configuracion.md) | Todas las opciones de `.intake.yaml`, presets y variables de entorno |
 
 **Pipeline:**
@@ -85,6 +85,7 @@ pip install -e ".[dev]"
 
 | Documento | Descripcion |
 |-----------|-------------|
+| [v1.0.0](github-notes/v1.0.0.md) | Production ready: 12 bug fixes, `regenerate` command, 902 tests |
 | [v0.6.0](github-notes/v0.6.0.md) | GitLab connector + parser, validate, estimate, custom templates, CI export |
 | [v0.5.0](github-notes/v0.5.0.md) | Polish, CI/CD, GitHub Actions action, mypy --strict, 5 examples |
 | [v0.4.0](github-notes/v0.4.0.md) | MCP server + Watch mode |
@@ -112,42 +113,45 @@ intake init "Fix login bug" -s notas.txt --mode quick
 # 5. Desde una URL
 intake init "API review" -s https://wiki.company.com/rfc/auth
 
-# 6. Verificar la implementacion contra la spec
+# 6. Regenerar una spec desde cero
+intake regenerate specs/pasarela-de-pagos/ -s reqs-actualizados.md
+
+# 7. Verificar la implementacion contra la spec
 intake verify specs/pasarela-de-pagos/ -p .
 
-# 7. Exportar para un agente especifico
+# 8. Exportar para un agente especifico
 intake export specs/pasarela-de-pagos/ -f claude-code -o .
 intake export specs/pasarela-de-pagos/ -f cursor -o .
 intake export specs/pasarela-de-pagos/ -f copilot -o .
 
-# 8. Desde conectores API directos (requiere config)
+# 9. Desde conectores API directos (requiere config)
 intake init "Sprint tasks" -s jira://PROJ/sprint/42
 intake init "RFC review" -s confluence://ENG/Architecture-RFC
 intake init "Sprint review" -s gitlab://team/backend/issues?labels=sprint
 
-# 9. Feedback loop: analizar fallos y sugerir correcciones
+# 10. Feedback loop: analizar fallos y sugerir correcciones
 intake feedback specs/pasarela-de-pagos/ -p .
 
-# 10. Gestionar plugins
+# 11. Gestionar plugins
 intake plugins list
 
-# 11. Seguimiento de tareas
+# 12. Seguimiento de tareas
 intake task list specs/pasarela-de-pagos/
 intake task update specs/pasarela-de-pagos/ 1 done --note "Implementado"
 
-# 12. Servidor MCP para agentes IA
+# 13. Servidor MCP para agentes IA
 intake mcp serve --transport stdio
 
-# 13. Watch mode: re-verificar al cambiar archivos
+# 14. Watch mode: re-verificar al cambiar archivos
 intake watch specs/pasarela-de-pagos/ --project-dir . --verbose
 
-# 14. Validar consistencia interna de una spec
+# 15. Validar consistencia interna de una spec
 intake validate specs/pasarela-de-pagos/
 
-# 15. Estimar costo antes de generar
+# 16. Estimar costo antes de generar
 intake estimate -s requirements.md -s notas.md
 
-# 16. Generar CI config para verificacion
+# 17. Generar CI config para verificacion
 intake export-ci specs/pasarela-de-pagos/ -p gitlab
 ```
 

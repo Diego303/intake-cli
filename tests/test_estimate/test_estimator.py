@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from intake.config.schema import EstimateConfig, LLMConfig
 from intake.estimate.estimator import (
     CostEstimate,
@@ -76,10 +78,11 @@ class TestEstimateFromFiles:
         assert result.total_output_tokens > 0
         assert result.estimated_cost_usd > 0.0
 
-    def test_nonexistent_file_counts_zero_words(self) -> None:
+    def test_nonexistent_file_raises_error(self) -> None:
+        """BUG-003: Nonexistent files must raise FileNotFoundError."""
         estimator = CostEstimator()
-        result = estimator.estimate_from_files(["/nonexistent/file.md"])
-        assert result.total_input_words == 0
+        with pytest.raises(FileNotFoundError, match="not found"):
+            estimator.estimate_from_files(["/nonexistent/file.md"])
 
     def test_explicit_mode_overrides_detection(self, tmp_path: Path) -> None:
         f = tmp_path / "reqs.md"

@@ -121,6 +121,9 @@ intake estimate ./specs/auth --model gpt-4o --mode enterprise
 intake export-ci ./specs/auth --platform gitlab -o .gitlab-ci.yml
 intake export-ci ./specs/auth --platform github -o .github/workflows/verify.yml
 
+# Regenerate a spec from scratch with new sources
+intake regenerate ./specs/auth-oauth2 -s requirements-v2.md -s notes.md
+
 # Analyze verification failures and get fix suggestions
 intake feedback ./specs/auth-oauth2
 intake feedback ./specs/auth -r report.json --apply --agent-format claude-code
@@ -206,6 +209,7 @@ connectors:
 |---------|-------------|--------|
 | `intake init` | Generate a spec from requirement sources | **Available** |
 | `intake add` | Add sources to an existing spec (incremental) | **Available** |
+| `intake regenerate` | Regenerate a spec from scratch with new sources | **Available** |
 | `intake verify` | Verify implementation against the spec | **Available** |
 | `intake export` | Export spec to agent-ready format | **Available** |
 | `intake show` | Show spec summary | **Available** |
@@ -638,7 +642,7 @@ ruff format src/ tests/
 mypy src/ --strict
 ```
 
-Current test suite: **882 tests**, **0 mypy --strict errors**, **0 ruff warnings**.
+Current test suite: **902 tests**, **0 mypy --strict errors**, **0 ruff warnings**.
 
 ### Implementation Status
 

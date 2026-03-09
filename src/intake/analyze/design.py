@@ -109,6 +109,40 @@ def _parse_task(item: dict[str, object]) -> TaskItem:
     )
 
 
+_VALID_CHECK_TYPES = {"command", "files_exist", "pattern_present", "pattern_absent"}
+
+# Map common LLM mistakes to valid check types.
+_CHECK_TYPE_ALIASES: dict[str, str] = {
+    "grep": "pattern_present",
+    "code_pattern": "pattern_present",
+    "regex": "pattern_present",
+    "pattern": "pattern_present",
+    "file_exists": "files_exist",
+    "file": "files_exist",
+    "shell": "command",
+    "cmd": "command",
+    "run": "command",
+    "manual": "command",
+}
+
+
+def _normalize_check_type(raw_type: str) -> str:
+    """Normalize an LLM-generated check type to a valid value.
+
+    Maps common invalid types to their closest valid equivalent.
+    Falls back to "command" if the type is unrecognized.
+    """
+    normalized = raw_type.strip().lower()
+    if normalized in _VALID_CHECK_TYPES:
+        return normalized
+    mapped = _CHECK_TYPE_ALIASES.get(normalized)
+    if mapped:
+        logger.debug("check_type_normalized", raw=raw_type, normalized=mapped)
+        return mapped
+    logger.warning("unknown_check_type_defaulting", raw=raw_type, default="command")
+    return "command"
+
+
 def _parse_check(item: dict[str, object]) -> AcceptanceCheck:
     """Parse a single acceptance check from the LLM output."""
     tags = item.get("tags", [])
@@ -118,7 +152,7 @@ def _parse_check(item: dict[str, object]) -> AcceptanceCheck:
     return AcceptanceCheck(
         id=str(item.get("id", "")),
         name=str(item.get("name", "")),
-        type=str(item.get("type", "command")),
+        type=_normalize_check_type(str(item.get("type", "command"))),
         required=bool(item.get("required", True)),
         tags=[str(t) for t in tags] if isinstance(tags, list) else [],
         command=str(item.get("command", "")),
